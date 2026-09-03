@@ -14,6 +14,8 @@ node_modules/
 *.log
 *.tgz
 *.zip
+__pycache__/
+*.pyc
 
 # Control / runtime state (lives in DSH_HOME, outside the repo anyway)
 dsh-owui-chat2api-control.json

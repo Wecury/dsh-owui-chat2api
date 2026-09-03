@@ -156,7 +156,12 @@ def _usage_init():
 _usage_init()
 
 
+_USAGE_INSERT_COUNT = 0  # rows written so far; retention pruning stays occasional
+
+
 def usage_insert(row: dict):
+    global _USAGE_INSERT_COUNT
+    _USAGE_INSERT_COUNT += 1
     conn = _usage_db_connect()
     try:
         conn.execute(
@@ -177,6 +182,12 @@ def usage_insert(row: dict):
                 str(row.get("error") or "")[:500],
             ),
         )
+        # Bounded history: occasionally drop rows older than the retention
+        # window (env DSH_OWUI_USAGE_RETENTION_DAYS, default 365) so the table
+        # cannot grow without bound. Runs every 100 inserts, not per row.
+        if _USAGE_INSERT_COUNT % 100 == 0:
+            days = int(os.environ.get("DSH_OWUI_USAGE_RETENTION_DAYS", "365"))
+            conn.execute("DELETE FROM usage WHERE ts < ?", (time.time() - days * 86400,))
         conn.commit()
     finally:
         conn.close()
@@ -509,20 +520,23 @@ def browser_login(base_url: str, profile_dir: str, timeout_s: int) -> str:
 
 
 def fetch_api_key(base_url: str, token: str) -> str | None:
-    """Best-effort: fetch the Open WebUI API key (long-lived, replaces the JWT).
-    Returns None if the instance does not expose it."""
-    for method in ("GET", "POST"):
-        try:
-            r = requests.request(
-                method, f"{base_url}/api/v1/auths/api_key",
-                headers={"Authorization": f"Bearer {token}"}, timeout=15)
-            if r.status_code == 200:
-                key = r.json().get("api_key")
-                if key:
-                    print(f"Got Open WebUI API key: {key[:12]}...")
-                    return key
-        except Exception:
-            pass
+    """Fetch the existing Open WebUI API key (long-lived, replaces the JWT).
+
+    GET-only on purpose: POST on /api/v1/auths/api_key would *create* a brand
+    new key on the instance, and an ordinary login flow should not mint API
+    keys the user never asked for. Returns None when none exists yet (the proxy
+    then falls back to the JWT token, see Proxy.bearer)."""
+    try:
+        r = requests.get(
+            f"{base_url}/api/v1/auths/api_key",
+            headers={"Authorization": f"Bearer {token}"}, timeout=15)
+        if r.status_code == 200:
+            key = r.json().get("api_key")
+            if key:
+                print(f"Got Open WebUI API key: {key[:12]}...")
+                return key
+    except Exception:
+        pass
     return None
 
 
@@ -920,10 +934,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 # ---------------------------------------------------------------- dashboard
-# A zero-build static page served at GET /dashboard. It uses HTMX from CDN to
-# pull /v1/usage?range=... and a ~40-line <script> to render summary cards, a
-# per-day token bar chart (pure SVG, no charting lib), and a per-model table.
-# Kept here as a single Python string so the proxy stays a one-file project.
+# A zero-build static page served at GET /dashboard. A ~40-line <script>
+# fetches /v1/usage?range=... and renders summary cards, a per-day token bar
+# chart (pure SVG, no charting lib), and a per-model table. No external
+# libraries, no CDN dependency. Kept here as a single Python string so the
+# proxy stays a one-file project.
 
 _DASHBOARD_HTML = """<!doctype html>
 <html lang="en">
@@ -931,7 +946,6 @@ _DASHBOARD_HTML = """<!doctype html>
 <meta charset="utf-8">
 <title>chat2api · usage dashboard</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<script src="https://unpkg.com/htmx.org@1.9.12"></script>
 <style>
   :root { color-scheme: light dark; --muted: #888; --accent: #4f7cff; }
   * { box-sizing: border-box; }

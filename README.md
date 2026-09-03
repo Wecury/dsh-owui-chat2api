@@ -29,19 +29,19 @@ Add to the desktop profile, then restart DSH Desktop:
 ```jsonc
 // C:\Users\Wecury\.dsh\profiles\desktop\package.json
 "dependencies": {
-  "dsh-owui-chat2api": "link:C:/Users/Wecury/.dsh/plugins/dsh-owui-chat2api-0.4.0",
+  "dsh-owui-chat2api": "link:C:/Users/Wecury/.dsh/plugins/dsh-owui-chat2api-0.5.0",
 }
 // dsh.profile.bundles: add "dsh-owui-chat2api"
 ```
 
-After restart an OWUI pill appears bottom-right. chat2api auto-starts with DSH
+After restart an OWUI pill appears top-right. chat2api auto-starts with DSH
 (`autoStart` defaults to true) and reuses the copied `.chrome-profile`, so it
 normally works with no manual login.
 
 ## Layout
 
 ```
-~/.dsh/plugins/dsh-owui-chat2api-0.4.0/
+~/.dsh/plugins/dsh-owui-chat2api-0.5.0/
   package.json        name: dsh-owui-chat2api, dsh.bundle.patch -> cordis.patch.yml
   cordis.patch.yml    inserts the plugin row into the profile composition
   lib/index.js        HOST: owns the python subprocess, cached diagnostics,
@@ -112,11 +112,11 @@ also where the live `.chrome-profile` lives — which must never be committed).
 Tag the version and push:
 
 ```bash
-git tag v0.4.0 && git push origin v0.4.0
+git tag v0.5.0 && git push origin v0.5.0
 ```
 
 Then on GitHub: **Releases → Draft a new release** → pick the tag → title/notes →
-attach an artifact. `npm pack` produces a clean `dsh-owui-chat2api-0.4.0.tgz`
+attach an artifact. `npm pack` produces a clean `dsh-owui-chat2api-0.5.0.tgz`
 (or zip the repo tree). The artifact carries no credentials by design —
 `.npmignore` excludes `.chrome-profile/` and `usage.db`.
 
