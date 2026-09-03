@@ -8,7 +8,8 @@
     "lib",
     "chat2api",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "keywords": [
     "dsh-plugin",

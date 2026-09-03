@@ -2,13 +2,14 @@
 chat2api/.chrome-profile/
 chat2api/usage.db
 
-# Dev/editor/environment noise
+# Dev/editor/environment noise.
+# NOTE: THIRD_PARTY_NOTICES.md deliberately stays in the pack — chat2api.py is
+# MIT (upstream), and the notice must travel with the vendored copy.
 scripts/
 .git/
 .gitignore
 .npmignore
 LICENSE
-THIRD_PARTY_NOTICES.md
 *.log
 *.tgz
 *.zip

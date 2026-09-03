@@ -26,7 +26,7 @@ if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
 New-Item -ItemType Directory $dest -Force | Out-Null
 
 robocopy $repo $dest /E `
-  /XD .git .chrome-profile scripts `
+  /XD .git .chrome-profile scripts __pycache__ `
   /XF usage.db *.log *.tgz *.zip .gitignore .npmignore package-lock.json pnpm-lock.yaml `
   | Out-Null
 
