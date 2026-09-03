@@ -6,7 +6,7 @@ from a small panel inside DSH. A persistent Profile Bundle: it survives restarts
 
 ## What you get
 
-- A floating **OWUI** pill (bottom-right). Its dot stays in sync with the chat2api
+- A floating **OWUI** pill (top-right). Its dot stays in sync with the chat2api
   process state (green = running, gray = stopped, yellow = exited, red = crashed).
   Click outside the panel to dismiss it.
 - **Status** card: Running / Stopped / Exited / Crashed, plus Start / Stop / Login.
@@ -27,9 +27,9 @@ from a small panel inside DSH. A persistent Profile Bundle: it survives restarts
 Add to the desktop profile, then restart DSH Desktop:
 
 ```jsonc
-// C:\Users\Wecury\.dsh\profiles\desktop\package.json
+// %USERPROFILE%\.dsh\profiles\<profile>\package.json
 "dependencies": {
-  "dsh-owui-chat2api": "link:C:/Users/Wecury/.dsh/plugins/dsh-owui-chat2api-0.5.0",
+  "dsh-owui-chat2api": "link:%USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-0.5.0",
 }
 // dsh.profile.bundles: add "dsh-owui-chat2api"
 ```
@@ -79,21 +79,18 @@ to the local `usage.db` when run standalone).
 | POST   | `/dsh-owui-chat2api/api/start`         | launch `chat2api.py`                     |
 | POST   | `/dsh-owui-chat2api/api/stop`          | stop `chat2api.py`                       |
 | POST   | `/dsh-owui-chat2api/api/login`         | one-time Open WebUI login                |
+| GET    | `/dsh-owui-chat2api/api/usage?range=`  | same-origin proxy to `http://<host>:<port>/v1/usage` |
 
-Usage data is fetched straight from the proxy's CORS-enabled
-`GET http://<host>:<port>/v1/usage?range=today|yesterday|month|cumulative`.
+Usage stays same-origin (through `/api/usage`), so the dashboard also works over
+HTTPS and when DSH is accessed remotely — no CORS needed on the proxy.
 
 ## Notes
 
-- This panel is an overlay injected via `webServer.tapIndex` — it is *not* the
+- The panel is an overlay injected via `webServer.tapIndex` — it is *not* the
   Settings navigation slot (that slot only exists for dynamic plugins).
-- The agent session itself often runs through this proxy. Stopping it takes down
-  the current chat session - Stop is therefore only enabled while the plugin's
-  own process is running.
-- The D-drive `openwebui-chat2api` repo is dev-only. The plugin ships its own
-  copy; update by replacing `chat2api/` and restarting.
-- History: `dsh-plugin-owui` -> `dsh-owui` -> `dsh-owui-chat2api` (readable and
-  faithful to the bundled project name).
+- If the DSH agent session routes through this proxy, stopping the proxy
+  interrupts the current chat; the controls are guarded so this stays a
+  deliberate action.
 
 ## Development (source vs packaged copy)
 
