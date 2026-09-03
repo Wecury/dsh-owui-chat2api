@@ -132,6 +132,12 @@ CREATE TABLE IF NOT EXISTS usage (
 );
 CREATE INDEX IF NOT EXISTS usage_ts_idx   ON usage(ts);
 CREATE INDEX IF NOT EXISTS usage_model_idx ON usage(model);
+CREATE TABLE IF NOT EXISTS effort_probe (
+    model   TEXT PRIMARY KEY,
+    support INTEGER NOT NULL,          -- 1 = backend accepted reasoning_effort, 0 = rejected
+    at      REAL    NOT NULL,          -- unix seconds of the probe
+    err     TEXT    NOT NULL DEFAULT ''
+);
 """
 
 
@@ -189,6 +195,34 @@ def usage_insert(row: dict):
             days = int(os.environ.get("DSH_OWUI_USAGE_RETENTION_DAYS", "365"))
             conn.execute("DELETE FROM usage WHERE ts < ?", (time.time() - days * 86400,))
         conn.commit()
+    finally:
+        conn.close()
+
+
+def _effort_cache_get(model: str) -> int | None:
+    """Cached --auto-effort-probe result: 1 supported, 0 not, None unknown."""
+    conn = _usage_db_connect()
+    try:
+        row = conn.execute("SELECT support FROM effort_probe WHERE model = ?", (model,)).fetchone()
+        return int(row["support"]) if row is not None else None
+    except Exception:
+        return None
+    finally:
+        conn.close()
+
+
+def _effort_cache_set(model: str, support: int, err: str = ""):
+    conn = _usage_db_connect()
+    try:
+        conn.execute(
+            "INSERT INTO effort_probe (model, support, at, err) VALUES (?,?,?,?) "
+            "ON CONFLICT(model) DO UPDATE SET support = excluded.support, "
+            "at = excluded.at, err = excluded.err",
+            (model, 1 if support else 0, time.time(), (err or "")[:200]),
+        )
+        conn.commit()
+    except Exception:
+        pass
     finally:
         conn.close()
 
@@ -701,6 +735,79 @@ class Proxy:
                 data["data"].append(m)
         return data
 
+    def _probe_effort(self, model: str) -> tuple[bool, str]:
+        """Cheap max_tokens=1 request with reasoning_effort=high; True when the
+        backend answers 200. 'Accepts' may mean 'ignores' for some models - this
+        only filters out backends that would reject the parameter wholesale."""
+        try:
+            r = self.call("POST", "/api/chat/completions", json={
+                "model": model,
+                "messages": [{"role": "user", "content": "p"}],
+                "max_tokens": 1,
+                "reasoning_effort": "high",
+            }, timeout=45)
+            if r.status_code == 200:
+                return True, ""
+            return False, f"HTTP {r.status_code}: {r.text[:160]}"
+        except Exception as e:
+            return False, str(e)[:160]
+
+
+def auto_probe_efforts(proxy: "Proxy", force: bool) -> list[str]:
+    """Probe the backend's base models for reasoning_effort acceptance and
+    return the ids that passed. Results are cached in the usage DB, so 'auto'
+    only probes each model once (use force=True to re-probe)."""
+    out: list[str] = []
+    r = proxy.call("GET", "/api/models")
+    if r.status_code != 200:
+        print(f"[auto-effort-probe] could not list models (HTTP {r.status_code})",
+              file=sys.stderr)
+        return out
+    base_ids = [m.get("id") for m in (r.json().get("data") or []) if m.get("id")]
+    if not base_ids:
+        return out
+    for m in base_ids:
+        if m in EFFORT_MODELS:
+            continue  # already registered manually
+        cached = None if force else _effort_cache_get(m)
+        if cached == 1:
+            out.append(m)
+            continue
+        if cached == 0:
+            print(f"[auto-effort-probe] {m}: unsupported (cached)")
+            continue
+        ok, err = proxy._probe_effort(m)
+        _effort_cache_set(m, 1 if ok else 0, err)
+        if ok:
+            out.append(m)
+            print(f"[auto-effort-probe] {m}: accepts reasoning_effort -> variants exposed")
+        else:
+            print(f"[auto-effort-probe] {m}: rejected ({err})")
+    return out
+
+
+def scan_efforts(proxy: "Proxy", force: bool = False) -> dict[str, bool]:
+    """Probe every backend model and return {id: accepts_reasoning_effort}.
+
+    Honors the usage-DB cache unless force=True. Prints no usage rows (the probe
+    is a direct upstream call, not a recorded chat)."""
+    result: dict[str, bool] = {}
+    r = proxy.call("GET", "/api/models")
+    if r.status_code != 200:
+        raise RuntimeError(f"could not list models (HTTP {r.status_code})")
+    for m in r.json().get("data") or []:
+        mid = m.get("id")
+        if not mid:
+            continue
+        cached = None if force else _effort_cache_get(mid)
+        if cached == 1 or cached == 0:
+            result[mid] = bool(cached)
+            continue
+        ok, err = proxy._probe_effort(mid)
+        _effort_cache_set(mid, 1 if ok else 0, err)
+        result[mid] = ok
+    return result
+
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -1121,6 +1228,18 @@ def main():
     ap.add_argument("--effort-model", action="append", default=[],
                     help="Register thinking-level variants for this model "
                          "(repeatable; e.g. --effort-model reasoning-model-a)")
+    ap.add_argument("--auto-effort-probe", nargs="?", const="auto", default=None,
+                    metavar="MODE",
+                    help="Probe backend models and auto-register reasoning-level "
+                         "variants for those that accept reasoning_effort. "
+                         "MODE auto (default) probes each model once and caches "
+                         "the result in the usage DB; force re-probes everything.")
+    ap.add_argument("--effort-scan", action="store_true",
+                    help="Probe models for reasoning_effort acceptance and print "
+                         "a JSON {model: accepted} map, then exit (cached; no "
+                         "usage rows are recorded)")
+    ap.add_argument("--effort-force", action="store_true",
+                    help="With --effort-scan, re-probe instead of using cached results")
     ap.add_argument("--login", action="store_true",
                     help="Sign in and save the token, then exit")
     ap.add_argument("--list-models", action="store_true",
@@ -1132,6 +1251,10 @@ def main():
     args = ap.parse_args()
     if args.no_browser and not args.token:
         ap.error("--no-browser requires --token")
+    if args.effort_scan and not args.token:
+        saved = TokenStore(TOKEN_FILE, args.base_url).load()
+        if not saved or not saved.get("token"):
+            ap.error("--effort-scan requires a saved token (run --login once) or --token")
 
     EFFORT_MODELS.extend(args.effort_model)
 
@@ -1159,6 +1282,29 @@ def main():
         for m in models.get("data", []):
             print(f"  - {m['id']}")
         return
+
+    if args.effort_scan:
+        try:
+            scan = scan_efforts(proxy, force=args.effort_force)
+        except Exception as e:
+            print(str(e), file=sys.stderr)
+            sys.exit(1)
+        print(json.dumps(scan, sort_keys=True, separators=(",", ":")))
+        return
+
+    if args.auto_effort_probe:
+        mode = args.auto_effort_probe
+        if mode not in ("auto", "force"):
+            mode = "auto"
+        auto = auto_probe_efforts(proxy, force=(mode == "force"))
+        for m in auto:
+            if m not in EFFORT_MODELS:
+                EFFORT_MODELS.append(m)
+        if auto:
+            print(f"[auto-effort-probe] {len(auto)} model(s) accept reasoning_effort: "
+                  f"{', '.join(auto)}")
+        else:
+            print("[auto-effort-probe] no model accepted reasoning_effort")
 
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     server.proxy = proxy

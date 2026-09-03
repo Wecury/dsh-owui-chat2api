@@ -15,12 +15,56 @@ from a small panel inside DSH. A persistent Profile Bundle: it survives restarts
 - **Configuration**: chat2apiDir (pre-filled to the bundled copy), Open WebUI base
   URL, host / port, and "start automatically with DSH" (enabled by default).
 - **Usage**: Today / Yesterday / Month / Cumulative tabs with calls, input/output
-  tokens, cached tokens, average latency, errors, and a per-model table.
+  tokens, cached tokens, average latency, errors, and a per-model **share-bar
+  ranking** (top 6 + "Other N", hover for the full breakdown).
 - **Process log**: collapsed expandable tail of the chat2api output.
 - **i18n**: English and 中文 built in. Follows the GUI language on first open;
   toggle in the panel header (memorised in `localStorage`).
 - Colors follow DSH's theme tokens (`--dsw-alias-*` / `--dsw-specific-sidebar-fill`)
   - panel background matches the DSH sidebar, light/dark themes are automatic.
+
+## Reasoning effort (推理等级)
+
+Reasoning models (e.g. behind a vLLM gateway) honour the OpenAI
+`reasoning_effort` parameter. This plugin's first-class path is DSH's **native
+model picker**: the level list is fixed (`off`/`low`/`medium`/`high`) and you
+tell DSH which models offer them by declaring `reasoningEfforts` in
+`~/.dsh/settings.yaml`. That declaration is the only thing that drives the
+router's reasoning dropdown — DSH runs on a static model list and never
+re-fetches it from the proxy.
+
+- **One click from the panel.** In *Configuration* there's an
+  **Auto-configure DSH reasoning levels** button: it probes every model once
+  (`max_tokens=1`, `reasoning_effort=high`), then adds `reasoningEfforts` to the
+  matching entries of the provider(s) whose baseURL points at the local proxy in
+  `~/.dsh/settings.yaml`. A
+  timestamped `.bak-reasoning-*` backup is written first; models already
+  declared are left alone; nothing else in the file is touched. Restart DSH
+  afterwards — the picker then shows Off / Low / Medium / High for those models,
+  and a future new model just needs the button again (results are cached, so a
+  re-run only probes models that weren't checked yet).
+
+- **Same thing by hand.** Declare the levels per model instead:
+
+  ```yaml
+  # ~/.dsh/settings.yaml → llm-pi-ai.providers.<your-provider>.models[]
+  - id: GLM-5.2-NVFP4
+    reasoningEfforts: { off: null, low: low, medium: medium, high: high }
+  ```
+
+  Once declared, the adapter sends `reasoning_effort` on every call and chat2api
+  passes it through untouched (verified against a vLLM gateway: low/medium/high
+  all 200; `off` = no effort sent — the default until you pick one).
+
+> **Standalone use of the bundled proxy** (non-DSH OpenAI clients): chat2api.py
+> still ships generic reasoning helpers — `--effort-scan` prints a
+> `{model: accepted}` JSON map, `--auto-effort-probe` auto-registers
+> `<base>-Fast/-Low/-Medium/-High` model variants, and `--effort-model` registers
+> them manually. These are deliberately **not** part of the DSH-plugin UI.
+
+> Caveat: a backend that *accepts* `reasoning_effort` may still *ignore* it for
+> a particular model (e.g. one that always thinks). Verify with a High vs Off
+> run when in doubt.
 
 ## Install (local link)
 
@@ -29,7 +73,7 @@ Add to the desktop profile, then restart DSH Desktop:
 ```jsonc
 // %USERPROFILE%\.dsh\profiles\<profile>\package.json
 "dependencies": {
-  "dsh-owui-chat2api": "link:%USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-0.5.1",
+  "dsh-owui-chat2api": "link:%USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-0.6.0",
 }
 // dsh.profile.bundles: add "dsh-owui-chat2api"
 ```
@@ -41,7 +85,7 @@ normally works with no manual login.
 ## Layout
 
 ```
-~/.dsh/plugins/dsh-owui-chat2api-0.5.1/
+~/.dsh/plugins/dsh-owui-chat2api-0.6.0/
   package.json        name: dsh-owui-chat2api, dsh.bundle.patch -> cordis.patch.yml
   cordis.patch.yml    inserts the plugin row into the profile composition
   lib/index.js        HOST: owns the python subprocess, cached diagnostics,
@@ -110,12 +154,12 @@ Tag the version and push (each line runs on its own — `&&` is bash-only and
 breaks in Windows PowerShell 5):
 
 ```bash
-git tag v0.5.1
-git push origin v0.5.1
+git tag v0.6.0
+git push origin v0.6.0
 ```
 
 Then on GitHub: **Releases → Draft a new release** → pick the tag → title/notes →
-attach an artifact. `npm pack` produces a clean `dsh-owui-chat2api-0.5.1.tgz`
+attach an artifact. `npm pack` produces a clean `dsh-owui-chat2api-0.6.0.tgz`
 (or zip the repo tree). The artifact carries no credentials by design —
 `.npmignore` excludes `.chrome-profile/` and `usage.db`.
 
