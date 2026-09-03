@@ -1,0 +1,26 @@
+# ---- NEVER publish: your logged-in Open WebUI browser session ----
+# .chrome-profile holds live cookies / Local State / credentials for the
+# Open WebUI instance. It is recreated by clicking "Login" in the panel,
+# and it must never leave your machine.
+chat2api/.chrome-profile/
+.chrome-profile/
+
+# Local usage database (personal usage data; recreated at runtime)
+chat2api/usage.db
+usage.db
+
+# Build / packaging noise
+node_modules/
+*.log
+*.tgz
+*.zip
+
+# Control / runtime state (lives in DSH_HOME, outside the repo anyway)
+dsh-owui-chat2api-control.json
+dsh-owui-chat2api-usage.db
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

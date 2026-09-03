@@ -1,0 +1,7 @@
+# dsh-owui-chat2api - DSH bundle patch
+# Adds the Open WebUI chat2api controller plugin row to the profile composition.
+# DSH loads this on startup, so the plugin survives restarts.
+
+- insert:
+    - id: dsh-owui-chat2api
+      name: dsh-owui-chat2api

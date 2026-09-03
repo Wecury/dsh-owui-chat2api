@@ -1,0 +1,18 @@
+# Safety net for npm pack: never ship the browser session or usage data.
+chat2api/.chrome-profile/
+chat2api/usage.db
+
+# Dev/editor/environment noise
+scripts/
+.git/
+.gitignore
+.npmignore
+LICENSE
+THIRD_PARTY_NOTICES.md
+*.log
+*.tgz
+*.zip
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
