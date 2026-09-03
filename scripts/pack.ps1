@@ -22,10 +22,11 @@ $ver  = if ($Version) { $Version } else { [string]$pkg.version }
 $homeDsh = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $env:USERPROFILE ".dsh" }
 $dest = Join-Path (Join-Path $homeDsh "plugins") ($pkg.name + "-" + $ver)
 
-if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
-New-Item -ItemType Directory $dest -Force | Out-Null
-
-robocopy $repo $dest /E `
+# NOTE: /MIR (mirror) instead of delete-first + /E. It never removes the
+# destination root and never touches /XD-excluded dirs, so a repack also works
+# while the proxy is running (bundle/chat2api is its CWD, and deleting that dir
+# is refused by Windows) and never wipes the live .chrome-profile.
+robocopy $repo $dest /MIR `
   /XD .git .chrome-profile scripts __pycache__ `
   /XF usage.db *.log *.tgz *.zip .gitignore .npmignore package-lock.json pnpm-lock.yaml `
   | Out-Null
