@@ -13,6 +13,7 @@
     "!chat2api/__pycache__",
     "cordis.patch.yml",
     "README.md",
+    "README.zh-CN.md",
     "THIRD_PARTY_NOTICES.md"
   ],
   "keywords": [
