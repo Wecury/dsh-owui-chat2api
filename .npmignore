@@ -1,6 +1,9 @@
-# Safety net for npm pack: never ship the browser session or usage data.
+# Safety net for npm pack: never ship the browser session, usage data or the
+# live Open WebUI session token (a real JWT if present locally).
 chat2api/.chrome-profile/
 chat2api/usage.db
+chat2api/token.json
+chat2api/__pycache__/
 
 # Dev/editor/environment noise.
 # NOTE: THIRD_PARTY_NOTICES.md deliberately stays in the pack — chat2api.py is

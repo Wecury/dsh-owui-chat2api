@@ -9,6 +9,11 @@ chat2api/.chrome-profile/
 chat2api/usage.db
 usage.db
 
+# Open WebUI session token - a live JWT if present. DSH installs keep it in
+# DSH_HOME (dsh-owui-chat2api-token.json); standalone runs keep ./token.json.
+chat2api/token.json
+token.json
+
 # Build / packaging noise
 node_modules/
 *.log
@@ -20,6 +25,7 @@ __pycache__/
 # Control / runtime state (lives in DSH_HOME, outside the repo anyway)
 dsh-owui-chat2api-control.json
 dsh-owui-chat2api-usage.db
+dsh-owui-chat2api-token.json
 
 # OS / editor
 .DS_Store

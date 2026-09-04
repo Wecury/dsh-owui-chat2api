@@ -74,8 +74,42 @@ for _s in (sys.stdout, sys.stderr):
 BASE_URL = "http://localhost:3000"
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-TOKEN_FILE = os.path.join(HERE, "token.json")          # NEVER commit this file
+# The session token is a live Open WebUI JWT. When the DSH plugin drives us, it
+# points at <DSH_HOME>/dsh-owui-chat2api-token.json so the credential never
+# lives inside the plugin/version directory (which is swapped on upgrade and can
+# otherwise leak into a packed tarball). Standalone runs keep the legacy
+# ./token.json next to this file.
+TOKEN_FILE = os.environ.get("DSH_OWUI_TOKEN_FILE") or os.path.join(HERE, "token.json")
 PROFILE_DIR = os.path.join(HERE, ".chrome-profile")    # browser profile with login state
+
+
+def _migrate_legacy_token() -> None:
+    """DSH installs: move a leftover bundle-dir token.json into <DSH_HOME> once,
+    so the plugin directory ends up credential-free. No-op for standalone runs."""
+    target = TOKEN_FILE
+    if not os.environ.get("DSH_OWUI_TOKEN_FILE"):
+        return
+    legacy = os.path.join(HERE, "token.json")
+    if target == legacy or os.path.exists(target) or not os.path.exists(legacy):
+        return
+    try:
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(legacy, "r", encoding="utf-8") as f:
+            data = f.read()
+        with open(target, "w", encoding="utf-8") as f:
+            f.write(data)
+        try:
+            os.chmod(target, 0o600)
+        except Exception:
+            pass
+        os.remove(legacy)
+        print("[chat2api] migrated token out of the plugin dir to",
+              target, file=sys.stderr)
+    except Exception:
+        pass
+
+
+_migrate_legacy_token()
 
 # Base models that get thinking-level virtual variants (see docstring).
 # You can also add them on the command line with --effort-model.
@@ -797,7 +831,8 @@ class Proxy:
 def auto_probe_efforts(proxy: "Proxy", force: bool) -> list[str]:
     """Probe the backend's base models for reasoning_effort acceptance and
     return the ids that passed. Results are cached in the usage DB, so 'auto'
-    only probes each model once (use force=True to re-probe)."""
+    only probes each model once (use force=True to re-probe). Uncached models
+    are probed concurrently so a large backend doesn't stall for minutes."""
     out: list[str] = []
     r = proxy.call("GET", "/api/models")
     if r.status_code != 200:
@@ -807,6 +842,7 @@ def auto_probe_efforts(proxy: "Proxy", force: bool) -> list[str]:
     base_ids = [m.get("id") for m in (r.json().get("data") or []) if m.get("id")]
     if not base_ids:
         return out
+    pending: list[str] = []
     for m in base_ids:
         if m in EFFORT_MODELS:
             continue  # already registered manually
@@ -817,25 +853,37 @@ def auto_probe_efforts(proxy: "Proxy", force: bool) -> list[str]:
         if cached == 0:
             print(f"[auto-effort-probe] {m}: unsupported (cached)")
             continue
+        pending.append(m)
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    def probe(m: str) -> tuple[str, bool, str]:
         ok, err = proxy._probe_effort(m)
         _effort_cache_set(m, 1 if ok else 0, err)
-        if ok:
-            out.append(m)
-            print(f"[auto-effort-probe] {m}: accepts reasoning_effort -> variants exposed")
-        else:
-            print(f"[auto-effort-probe] {m}: rejected ({err})")
+        return m, ok, err
+
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        for m, ok, err in ex.map(probe, pending):  # preserves input order
+            if ok:
+                out.append(m)
+                print(f"[auto-effort-probe] {m}: accepts reasoning_effort -> variants exposed")
+            else:
+                print(f"[auto-effort-probe] {m}: rejected ({err})")
     return out
 
 
 def scan_efforts(proxy: "Proxy", force: bool = False) -> dict[str, bool]:
     """Probe every backend model and return {id: accepts_reasoning_effort}.
 
-    Honors the usage-DB cache unless force=True. Prints no usage rows (the probe
-    is a direct upstream call, not a recorded chat)."""
+    Honors the usage-DB cache unless force=True. Uncached models are probed
+    concurrently (a probe can take up to ~45s, so a serial walk would blow past
+    the host's spawn timeout once there are more than two unknowns). Prints no
+    usage rows (the probe is a direct upstream call, not a recorded chat)."""
     result: dict[str, bool] = {}
     r = proxy.call("GET", "/api/models")
     if r.status_code != 200:
         raise RuntimeError(f"could not list models (HTTP {r.status_code})")
+    uncached: list[str] = []
     for m in r.json().get("data") or []:
         mid = m.get("id")
         if not mid:
@@ -844,9 +892,18 @@ def scan_efforts(proxy: "Proxy", force: bool = False) -> dict[str, bool]:
         if cached == 1 or cached == 0:
             result[mid] = bool(cached)
             continue
+        uncached.append(mid)
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    def probe(mid: str) -> tuple[str, bool]:
         ok, err = proxy._probe_effort(mid)
         _effort_cache_set(mid, 1 if ok else 0, err)
-        result[mid] = ok
+        return mid, ok
+
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        for mid, ok in ex.map(probe, uncached):  # preserves input order
+            result[mid] = ok
     return result
 
 
@@ -881,6 +938,8 @@ class Handler(BaseHTTPRequestHandler):
     def _read_body(self) -> dict:
         length = int(self.headers.get("Content-Length") or 0)
         if length == 0:
+            return {}
+        if length > 8 * 1024 * 1024:  # refuse oversized bodies before reading
             return {}
         try:
             return json.loads(self.rfile.read(length))

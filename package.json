@@ -1,12 +1,16 @@
 {
   "name": "dsh-owui-chat2api",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Open WebUI chat2api controller for DeepSeek Harness: runs the bundled reverse proxy, adjusts its config, and watches per-call usage from a panel inside DSH.",
   "type": "module",
   "main": "lib/index.js",
   "files": [
     "lib",
     "chat2api",
+    "!chat2api/token.json",
+    "!chat2api/usage.db",
+    "!chat2api/.chrome-profile",
+    "!chat2api/__pycache__",
     "cordis.patch.yml",
     "README.md",
     "THIRD_PARTY_NOTICES.md"
