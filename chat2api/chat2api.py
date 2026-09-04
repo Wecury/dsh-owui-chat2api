@@ -509,16 +509,35 @@ def find_chrome() -> str | None:
     return None
 
 
+def _token_state(base_url: str, token: str) -> str:
+    """Classify a token: 'ok' (accepted), 'stale' (401/403), 'retry' (unknown)."""
+    try:
+        r = requests.get(f"{base_url}/api/models",
+                         headers={"Authorization": f"Bearer {token}"}, timeout=15)
+        if r.status_code == 200:
+            return "ok"
+        if r.status_code in (401, 403):
+            return "stale"
+        return "retry"
+    except Exception:
+        return "retry"
+
+
 def browser_login(base_url: str, profile_dir: str, timeout_s: int) -> str:
-    """Open a visible browser window, wait for the user to sign in, then read
-    the Open WebUI token from localStorage."""
+    """Open a visible browser window and wait for a *valid* session token.
+
+    A token sitting in localStorage is not proof it still works, so each
+    candidate is checked against the backend. A stale/revoked token is cleared
+    and the page reloaded to force a real sign-in; the window stays open until a
+    token the backend actually accepts appears (or the timeout hits).
+    """
     from playwright.sync_api import sync_playwright  # lazy import
 
     chrome = find_chrome()
     print("=" * 60)
     print(f"Opening browser: {base_url}")
     print("Sign in in the window that pops up (skipped if already logged in).")
-    print(f"Waiting up to {timeout_s}s for the session token...")
+    print(f"Waiting up to {timeout_s}s for a valid session token...")
     print("=" * 60)
 
     with sync_playwright() as p:
@@ -537,14 +556,31 @@ def browser_login(base_url: str, profile_dir: str, timeout_s: int) -> str:
             print(f"[warn] Failed to load page (may still be redirecting): {e}")
 
         deadline = time.time() + timeout_s
+        last_reload = 0.0
         while time.time() < deadline:
             try:
                 token = page.evaluate("localStorage.getItem('token')")
-                if token:
+            except Exception:
+                token = None
+            if token:
+                state = _token_state(base_url, token)
+                if state == "ok":
                     print("\nSigned in, token acquired.")
                     return token
-            except Exception:
-                pass
+                if state == "stale":
+                    print("\n[login] existing token was rejected - clearing it "
+                          "and reloading for a fresh sign-in...")
+                    try:
+                        page.evaluate("localStorage.removeItem('token')")
+                    except Exception:
+                        pass
+                    if time.time() - last_reload > 5:
+                        last_reload = time.time()
+                        try:
+                            page.goto(base_url, wait_until="domcontentloaded",
+                                      timeout=30000)
+                        except Exception:
+                            pass
             page.wait_for_timeout(1000)
 
         raise RuntimeError(
