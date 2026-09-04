@@ -574,15 +574,20 @@ def fetch_api_key(base_url: str, token: str) -> str | None:
     return None
 
 
-def authenticate(args) -> dict:
-    """Return {'token': ..., 'api_key': ...}, opening the browser if needed."""
+def authenticate(args, force_browser: bool = False) -> dict:
+    """Return {'token': ..., 'api_key': ...}, opening the browser when needed.
+
+    With force_browser (used by --login) the sign-in window always opens: the
+    dedicated profile usually still holds the session, so the token is picked up
+    within a second; when it expired, the user signs in again right there.
+    """
     store = TokenStore(TOKEN_FILE, args.base_url)
     saved = store.load()
 
     if args.token:
         return {"token": args.token, "api_key": None}
 
-    if saved and saved.get("token"):
+    if saved and saved.get("token") and not force_browser:
         return {"token": saved["token"], "api_key": saved.get("api_key")}
 
     token = browser_login(args.base_url, args.profile, args.login_timeout)
@@ -1166,7 +1171,7 @@ def _render_dashboard_html() -> str:
 
 
 def _cmd_status(args):
-    """Print login/token status without opening a browser."""
+    """Show token/login status (may re-open the browser to re-auth on 401)."""
     store = TokenStore(TOKEN_FILE, args.base_url)
     d = store.load()
     print(f"base_url : {args.base_url}")
@@ -1265,11 +1270,15 @@ def main():
         _cmd_test(args)
         return
 
-    creds = authenticate(args)
-
     if args.login:
+        # Always open the sign-in window (unless --no-browser): a saved token is
+        # no proof the session is still valid, and clicking "login" means "let me
+        # back in". The profile's own session makes this near-instant when valid.
+        creds = authenticate(args, force_browser=not args.no_browser)
         print(f"Signed in, token saved to {TOKEN_FILE}")
         return
+
+    creds = authenticate(args)
 
     proxy = Proxy(creds, args)
 
