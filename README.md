@@ -33,16 +33,21 @@ tell DSH which models offer them by declaring `reasoningEfforts` in
 router's reasoning dropdown — DSH runs on a static model list and never
 re-fetches it from the proxy.
 
-- **One click from the panel.** In *Configuration* there's an
-  **Auto-configure DSH reasoning levels** button: it probes every model once
-  (`max_tokens=1`, `reasoning_effort=high`), then adds `reasoningEfforts` to the
-  matching entries of the provider(s) whose baseURL points at the local proxy in
-  `~/.dsh/settings.yaml`. A
+- **One click from the panel.** In *Configuration* there's a **Sync models &
+  reasoning levels** button: it probes every model once (`max_tokens=1`,
+  `reasoning_effort=high`) through the proxy, **creates the model provider in
+  `~/.dsh/settings.yaml` if none points at the proxy yet** (no manual
+  "add provider" step in DSH Settings — the auto-created provider carries an
+  inline `Authorization` header, so DSH never asks for a key; the proxy ignores
+  incoming keys and uses its own saved token), **adds any model the backend
+  exposes that isn't declared yet** to the provider(s) whose baseURL points at
+  the local proxy, then adds `reasoningEfforts` for the models that accept the
+  parameter — all in `~/.dsh/settings.yaml`. A
   timestamped `.bak-reasoning-*` backup is written first; models already
-  declared are left alone; nothing else in the file is touched. Restart DSH
-  afterwards — the picker then shows Off / Low / Medium / High for those models,
-  and a future new model just needs the button again (results are cached, so a
-  re-run only probes models that weren't checked yet).
+  declared/patched are left alone; nothing else in the file is touched. Restart
+  DSH afterwards — the picker lists every backend model with Off / Low / Medium /
+  High where supported. A future new model just needs the button again (results
+  are cached, so a re-run only probes models that weren't checked yet).
 
 - **Same thing by hand.** Declare the levels per model instead:
 
