@@ -1038,7 +1038,22 @@ class Handler(BaseHTTPRequestHandler):
         stream = bool(body.get("stream"))
         model = body.get("model")
         call_start = time.time()
-        r = proxy.call("POST", "/api/chat/completions", json=body, stream=stream)
+        try:
+            r = proxy.call("POST", "/api/chat/completions", json=body, stream=stream)
+        except Exception as e:
+            # Upstream unreachable or hung (connect failure / read timeout):
+            # answer cleanly instead of letting the handler die with the
+            # connection unanswered - otherwise every retry just looks like
+            # "no response".
+            latency_ms = int((time.time() - call_start) * 1000)
+            proxy._record_error("chat", 0, f"{type(e).__name__}: {str(e)[:300]}")
+            usage_insert(build_usage_row(
+                model=model, status=0, is_stream=stream,
+                latency_ms=latency_ms, body=body,
+                upstream_usage=None, error=f"{type(e).__name__}: {str(e)[:200]}"))
+            self._error(502, "Upstream request failed",
+                        f"{type(e).__name__}: {str(e)[:300]}")
+            return
         latency_ms = int((time.time() - call_start) * 1000)
         if r.status_code != 200:
             proxy._record_chat(model, stream, r.status_code)
@@ -1091,6 +1106,8 @@ class Handler(BaseHTTPRequestHandler):
         # field. OpenAI/vLLM put the cumulative snapshot on the final chunk
         # before [DONE]; we keep the last non-null one we saw.
         last_usage: dict | None = None
+        saw_done = False
+        last_finish_reason: str | None = None
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-cache")
@@ -1104,8 +1121,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write((raw + "\n\n").encode("utf-8"))
                 self.wfile.flush()
                 if raw.strip() == "data: [DONE]":
+                    saw_done = True
                     break
-                # Cheap inline usage scan — only attept JSON parse on
+                # Cheap inline usage scan — only attempt JSON parse on
                 # `data: {...}` lines, never on comments or `data: ` empty.
                 if raw.lstrip().startswith("data:") and "{" in raw:
                     m = _SSE_DATA_RE.match(raw.strip())
@@ -1115,11 +1133,41 @@ class Handler(BaseHTTPRequestHandler):
                             u = _extract_usage_block(chunk)
                             if u is not None:
                                 last_usage = u
+                            try:
+                                fr = (chunk.get("choices") or [{}])[0].get("finish_reason")
+                                if fr:
+                                    last_finish_reason = fr
+                            except Exception:
+                                pass
                         except Exception:
                             pass  # not every data: line is JSON; ignore
-        except (BrokenPipeError, ConnectionResetError):
-            pass  # client disconnected
+        except (BrokenPipeError, ConnectionResetError,
+                requests.exceptions.RequestException):
+            pass  # client disconnected, or the upstream stream was cut mid-read
         finally:
+            # Long upstream responses (big context, long generations) are
+            # sometimes cut by an idle/stream timeout before the terminal
+            # `data: [DONE]` — or even before the chunk carrying finish_reason.
+            # Closing the downstream connection right there makes strict clients
+            # fail with "Stream ended without finish_reason". So end the stream
+            # gracefully instead: repeat a final chunk with the finish_reason
+            # we saw (or "stop") plus any usage, then emit [DONE].
+            if not saw_done:
+                try:
+                    if not last_finish_reason:
+                        self.wfile.write(("data: " + json.dumps({
+                            "id": "chatcmpl-" + str(int(time.time() * 1000)),
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": model,
+                            "choices": [{"index": 0, "delta": {},
+                                         "finish_reason": "stop"}],
+                            "usage": last_usage,
+                        }) + "\n\n").encode("utf-8"))
+                    self.wfile.write(b"data: [DONE]\n\n")
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError, OSError):
+                    pass
             r.close()
             self.close_connection = True
             usage_insert(build_usage_row(
