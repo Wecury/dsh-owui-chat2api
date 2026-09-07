@@ -64,7 +64,7 @@
 | POST | `/dsh-owui-chat2api/api/start` | 启动 `chat2api.py` |
 | POST | `/dsh-owui-chat2api/api/stop` | 停止 `chat2api.py` |
 | POST | `/dsh-owui-chat2api/api/login` | 一次性 Open WebUI 登录 |
-| POST | `/dsh-owui-chat2api/api/effort-scan` / `effort-scan-force` | 探测模型 + 写入 settings.yaml |
+| POST | `/dsh-owui-chat2api/api/effort-scan` / `effort-scan-force` | 启动模型扫描（立即返回，结果经 status 轮询 + 面板通知） |
 | GET  | `/dsh-owui-chat2api/api/usage?range=` | 同源代理到 `http://<host>:<port>/v1/usage` |
 
 用量走同源（经 `/api/usage`），所以 HTTPS 与外网访问 DSH 时也没有混合内容 /
@@ -73,9 +73,10 @@ CORS 问题。
 ## 核心约定（改代码前先读）
 
 - **任何 web handler 都不得阻塞事件循环**：python/依赖探测是缓存式的
-  （TTL 20s），过期后只在 `setImmediate` 里后台重探；start/login 也在请求路径
-  之外启动子进程。改这块时保持这个不变量。
-- `startImpl` / `loginImpl` 返回 `{ async: true }`，面板靠轮询收敛最终状态。
+  （TTL 20s），过期后由**真异步** probe（spawn，非 spawnSync）后台重探；
+  start/login 也在请求路径之外启动子进程。改这块时保持这个不变量。
+- `startImpl` / `loginImpl` / `startEffortScan` 返回 `{ async: true }`，面板靠
+  轮询收敛最终状态（登录结果在 status 的 `login` 字段，扫描在 `effortScan`）。
 - 给 python 子进程的 env 是**白名单**（`childEnv()`），不是整个 `process.env`
   ——以免把 DSH 里其它服务的密钥泄漏给第三方代理。
 - `settings-patch.js` 只做文本级修补（保留注释/顺序）。写完要能通过自身的
