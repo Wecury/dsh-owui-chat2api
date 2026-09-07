@@ -80,17 +80,18 @@ powershell -ExecutionPolicy Bypass -File scripts\pack.ps1          # 用 package
 powershell -ExecutionPolicy Bypass -File scripts\pack.ps1 -Version 0.8.0   # 或指定版本
 ```
 
-脚本用 `robocopy /MIR` 组装到 `~/.dsh/plugins/dsh-owui-chat2api-<version>`
-并打印下一步。它**按构造排除** `.chrome-profile/`、`usage.db`、`token.json`、
-`__pycache__`、`.git` 与构建噪声——因为 `/MIR` 不会删除目标根目录，也不碰
-`/XD` 排除的目录，所以代理正在跑时也能安全重打包，也不会误删在线登录态。
+脚本用 `robocopy /MIR` 组装到 `~/.dsh/plugins/dsh-owui-chat2api-<version>`，
+然后**自动重链**：重建 junction（版本号变了才需要）、把 profile
+`package.json` 的依赖改成 `link:<新目录>`（保留原格式，强制 UTF-8 **无 BOM**
+写回——DSH 的 JSON 解析器不认 BOM）。它**按构造排除** `.chrome-profile/`、
+`usage.db`、`token.json`、`__pycache__`、`.git` 与构建噪声——`/MIR` 不会删除
+目标根目录，也不碰 `/XD` 排除的目录，所以代理正在跑时也能安全重打包，不会
+误删在线登录态。
 
-link + 重启（pack 脚本也会打印精确命令）：
+所以本地实测循环就两步：
 
-```powershell
-New-Item -ItemType Junction "$ENV:USERPROFILE\.dsh\profiles\desktop\node_modules\dsh-owui-chat2api" -Target "$dest"
-# 并把 profile 依赖 + bundles 行改成新版本号（见 README 安装示例）
-```
+1. `powershell -ExecutionPolicy Bypass -File scripts\pack.ps1`
+2. 重启 DSH Desktop
 
 重启 DSH 后 `lib/*` 生效；**只改了 `chat2api.py` 不用重启**（它每次 spawn 都从
 磁盘读）。
