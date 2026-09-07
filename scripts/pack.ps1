@@ -35,7 +35,7 @@ $dest = Join-Path (Join-Path $homeDsh "plugins") ($pkg.name + "-" + $ver)
 # while the proxy is running (bundle/chat2api is its CWD, and deleting that dir
 # is refused by Windows) and never wipes the live .chrome-profile.
 robocopy $repo $dest /MIR `
-  /XD .git .chrome-profile scripts __pycache__ `
+  /XD .git .chrome-profile scripts test __pycache__ `
   /XF usage.db *.log *.tgz *.zip .gitignore .npmignore package-lock.json pnpm-lock.yaml `
   | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy failed with exit code $LASTEXITCODE" }

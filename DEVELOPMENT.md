@@ -43,6 +43,8 @@
   chat2api/           chat2api.py + requirements.txt（.chrome-profile 运行期才有）
 ```
 
+（`test/` 只在仓库里，不进安装副本。）
+
 ## 运行期数据放哪
 
 - 配置：`<DSH_HOME>/dsh-owui-chat2api-control.json`（`node_modules` 可只读）。
@@ -112,6 +114,19 @@ powershell -ExecutionPolicy Bypass -File scripts\pack.ps1 -Version 0.8.0   # 或
 
 重启 DSH 后 `lib/*` 生效；**只改了 `chat2api.py` 不用重启**（它每次 spawn 都从
 磁盘读）。
+
+## 测试
+
+- `npm test`（即 `node --test test/settings-patch.test.js`）——覆盖
+  `lib/settings-patch.js` 的全部行为：effort 块插入位置与缩进、幂等
+  （二次运行 `NO_CHANGE`）、CRLF 检测与保持、注释/无关 provider 字节级保留、
+  `NO_PROVIDER`/`NOOP` 失败路径、空 `models:` 列表、`ensureProvider` 全链创建
+  与重名避让（`chat2api-1`），以及 effort-scan "写后自验证"依赖的
+  **三轮 round-trip 不变量**（create → patch → 再跑一遍全部报 already）。
+- settings.yaml 是用户的核心配置，**改 `settings-patch.js` 必须先跑测试**；
+  新增行为先加测试再改实现。
+- `test/` 是纯开发工件：不进 npm 发布（`files` 白名单不含），也不进打包
+  副本（pack.ps1 `/XD` 排除）。
 
 ## 备注
 

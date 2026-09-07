@@ -4,6 +4,9 @@
   "description": "Open WebUI chat2api controller for DeepSeek Harness: runs the bundled reverse proxy, adjusts its config, and watches per-call usage from a panel inside DSH.",
   "type": "module",
   "main": "lib/index.js",
+  "scripts": {
+    "test": "node --test test/settings-patch.test.js"
+  },
   "files": [
     "lib",
     "chat2api",
