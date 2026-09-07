@@ -35,3 +35,17 @@ SOFTWARE.
 This plugin ships its own copy, with small patches for stable usage storage
 (the host passes `DSH_OWUI_USAGE_DB` so stats survive plugin updates and
 renames; standalone runs fall back to the in-place `usage.db`).
+
+**Upstream tracking:** the vendored copy also carries plugin-specific additions
+(effort-scan, /v1/usage, the dashboard, token-file redirection) and is not a
+verbatim snapshot of any upstream commit — diffs against upstream are expected
+and each divergence is commented at its site. Upstream fix `32df4a5` (2026-09-07,
+"Fix stale-token login loop and upstream stream crashes") was reviewed 2026-09-12:
+the streaming-exception tolerance was already covered (our handler catches the
+broader `requests.exceptions.RequestException`) and the stale-token check in
+`browser_login` was already implemented independently (stronger: page reload +
+`_token_state` helper). The remaining piece — validating saved credentials at
+startup in `authenticate()` — was ported with one plugin-specific adaptation: a
+definitely rejected credential (HTTP 401/403) falls back to the sign-in window
+as upstream does, but an unreachable backend keeps the saved credential so a
+transient outage cannot kill the DSH autostart.

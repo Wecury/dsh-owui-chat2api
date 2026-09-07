@@ -650,6 +650,13 @@ def authenticate(args, force_browser: bool = False) -> dict:
     With force_browser (used by --login) the sign-in window always opens: the
     dedicated profile usually still holds the session, so the token is picked up
     within a second; when it expired, the user signs in again right there.
+
+    Saved credentials are validated at startup (ported from upstream fix
+    32df4a5) so a revoked token cannot boot the proxy into a silent 401 loop:
+    a definitely rejected credential falls back to the sign-in window just
+    like a missing one. When the backend cannot be reached at all, the saved
+    credential is kept — a transient outage must not kill autostart; the
+    proxy reports 401/5xx per request until the backend is back.
     """
     store = TokenStore(TOKEN_FILE, args.base_url)
     saved = store.load()
@@ -657,8 +664,16 @@ def authenticate(args, force_browser: bool = False) -> dict:
     if args.token:
         return {"token": args.token, "api_key": None}
 
-    if saved and saved.get("token") and not force_browser:
-        return {"token": saved["token"], "api_key": saved.get("api_key")}
+    if saved and (saved.get("api_key") or saved.get("token")) and not force_browser:
+        bearer = saved.get("api_key") or saved.get("token")
+        state = _token_state(args.base_url, bearer)
+        if state == "ok":
+            return {"token": saved.get("token"), "api_key": saved.get("api_key")}
+        if state == "stale":
+            print(f"[chat2api] Saved credentials rejected by {args.base_url}, "
+                  "opening the sign-in window...")
+        # state == 'retry' (backend unreachable): keep the saved credential and
+        # start serving anyway — the backend may just be restarting.
 
     token = browser_login(args.base_url, args.profile, args.login_timeout)
     api_key = fetch_api_key(args.base_url, token) if args.use_api_key else None

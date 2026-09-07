@@ -38,10 +38,10 @@ DSH Desktop ships a plugin manager. One command installs the plugin **and**
 registers it in your profile (dependencies + bundles):
 
 ```powershell
-dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.7.2
+dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.8.0
 ```
 
-- `#v0.7.2` pins the release tag — use the version you want (omit it to
+- `#v0.8.0` pins the release tag — use the version you want (omit it to
   follow `main`).
 - Requires `git` on PATH (pnpm clones the repo). Behind a proxy? Export
   `http_proxy` / `https_proxy` first.
@@ -58,15 +58,15 @@ dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.7.2
    directory — move and rename it (`tar` ships with Windows 10+):
 
    ```powershell
-   tar -xzf dsh-owui-chat2api-0.7.2.tgz
-   Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.7.2"
+   tar -xzf dsh-owui-chat2api-0.8.0.tgz
+   Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.8.0"
    ```
 
 3. Register it in `%USERPROFILE%\.dsh\profiles\desktop\package.json`:
 
    ```jsonc
    "dependencies": {
-     "dsh-owui-chat2api": "link:%USERPROFILE%\\.dsh\\plugins\\dsh-owui-chat2api-0.7.2"
+     "dsh-owui-chat2api": "link:%USERPROFILE%\\.dsh\\plugins\\dsh-owui-chat2api-0.8.0"
    },
    "dsh": { "profile": { "bundles": [ /* ... */ "dsh-owui-chat2api" ] } }
    ```
@@ -81,7 +81,7 @@ Paste this to your DSH assistant and it will do the rest:
 请帮我安装 DSH 插件 dsh-owui-chat2api(GitHub 仓库 Wecury/dsh-owui-chat2api)。
 
 步骤:
-1. 执行:dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.7.2
+1. 执行:dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.8.0
    (需要本机有 git。如果 dsh plugin 不可用,改用手动方式:从仓库 Releases 的
    Assets 下载 dsh-owui-chat2api-<版本>.tgz,解压得到 package/ 文件夹,移动并
    改名为 %USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-<版本>;然后在
