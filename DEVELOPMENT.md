@@ -5,7 +5,9 @@
 - `lib/index.js` —— **HOST** 半区：负责 `chat2api.py` 子进程生命周期、缓存式
   诊断探测、`webServer` 路由、以及通过 `webServer.tapIndex` 注入面板。
 - `lib/panel.js` —— **CLIENT** 半区：注入 DSH 网页壳的 Vanilla JS 面板逻辑
-  （含中英 i18n，车头自包含，不使用 Cordis 客户端模块）。
+  （车头自包含，不使用 Cordis 客户端模块）。
+- `lib/panel-i18n.js` —— 面板中英字典（`window.__dshOwuiI18n`），host 在
+  `panel.js` 之前注入；panel.js 读不到时降级显示 key，不会崩。
 - `lib/panel.css` —— 面板样式，由 host 经 `/dsh-owui-chat2api/panel.css`
   提供，`tapIndex` 以 `<link>` 注入（独立文件，浏览器可缓存）。
 - `lib/settings-patch.js` —— 文本级 YAML 补丁器：向 `~/.dsh/settings.yaml`
@@ -23,6 +25,7 @@
   cordis.patch.yml    把插件行插入 profile 的组合文件
   lib/index.js        HOST：子进程 / 诊断缓存 / 路由 / tapIndex
   lib/panel.js        CLIENT：自包含控制面板（逻辑）
+  lib/panel-i18n.js   CLIENT：面板中英字典（先于 panel.js 注入）
   lib/panel.css       CLIENT：面板样式（/panel.css 提供）
   lib/settings-patch.js   settings.yaml 文本补丁器
   chat2api/           chat2api.py + requirements.txt（.chrome-profile 运行期才有）
@@ -42,6 +45,7 @@
 | Method | Path | 用途 |
 | ------ | ---- | ---- |
 | GET  | `/dsh-owui-chat2api/panel.js` | 面板脚本（经 tapIndex） |
+| GET  | `/dsh-owui-chat2api/panel-i18n.js` | 面板字典（先于 panel.js 注入） |
 | GET  | `/dsh-owui-chat2api/panel.css` | 面板样式（经 tapIndex） |
 | GET  | `/dsh-owui-chat2api/api/status` | 配置 + 运行状态 + 诊断 + 日志尾部 |
 | GET/POST | `/dsh-owui-chat2api/api/config` | 读取 / 保存配置（false→true 时自动启动） |
