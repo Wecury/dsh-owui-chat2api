@@ -90,10 +90,17 @@
   background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 9%, transparent);
   border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 28%, transparent); }
 #dsh-owui-panel .ow-note-err .ow-note-ic { background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 18%, transparent); color: var(--dsw-alias-state-error-primary); }
-#dsh-owui-panel .ow-note-info { color: var(--dsw-alias-brand-primary);
-  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 9%, transparent);
-  border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 26%, transparent); }
-#dsh-owui-panel .ow-note-info .ow-note-ic { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 18%, transparent); color: var(--dsw-alias-brand-primary); }
+/* Info severity: DSH's --dsw-alias-brand-primary is a near-monochrome
+ * "neutral bluish" pair (dark #f9fafb / light #0f1115), NOT a visible blue,
+ * so info notices tinted with it look plain gray. Use the real blue static
+ * tokens instead (defined on <body>, inherited here): blue-400 on dark,
+ * blue-600 on light. */
+#dsh-owui-panel .ow-note-info { color: var(--ow-info, #60a5fa);
+  background: color-mix(in srgb, var(--ow-info, #60a5fa) 9%, transparent);
+  border-color: color-mix(in srgb, var(--ow-info, #60a5fa) 26%, transparent); }
+#dsh-owui-panel .ow-note-info .ow-note-ic { background: color-mix(in srgb, var(--ow-info, #60a5fa) 18%, transparent); color: var(--ow-info, #60a5fa); }
+#dsh-owui-panel.ow-dark .ow-note-info { --ow-info: var(--dsw-static-blue-400, #60a5fa); }
+#dsh-owui-panel.ow-light .ow-note-info { --ow-info: var(--dsw-static-blue-600, #2563eb); }
 
 #dsh-owui-panel .ow-btn { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 16%, transparent);
   color: var(--dsw-alias-brand-primary);
