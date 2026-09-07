@@ -2,8 +2,16 @@
 
 ## 代码结构
 
-- `lib/index.js` —— **HOST** 半区：负责 `chat2api.py` 子进程生命周期、缓存式
-  诊断探测、`webServer` 路由、以及通过 `webServer.tapIndex` 注入面板。
+- `lib/index.js` —— **HOST 接线层**：只做 `webServer` 路由注册、`tapIndex`
+  面板注入、HTTP 小工具与 autostart/清理；逻辑全部在下面四个模块里。
+- `lib/config.js` —— 控制文件配置（`dsh-owui-chat2api-control.json`）与共享
+  路径常量（`PACKAGE_ROOT` / `CHAT2API_DIR` / `DSH_HOME`）。
+- `lib/diagnostics.js` —— 缓存式 python/依赖探测（唯一探测 python 的地方，
+  TTL 20s，过期后台重探）。
+- `lib/proxy-process.js` —— `chat2api.py` 子进程生命周期：proxy 启停、登录
+  流程与结果记账、进程日志尾部、python 子进程的 env 白名单。
+- `lib/effort-scan.js` —— 一键扫描后端模型，把模型 + `reasoningEfforts`
+  写入 `~/.dsh/settings.yaml`（自动备份、写后自验证）。
 - `lib/panel.js` —— **CLIENT** 半区：注入 DSH 网页壳的 Vanilla JS 面板逻辑
   （车头自包含，不使用 Cordis 客户端模块）。
 - `lib/panel-i18n.js` —— 面板中英字典（`window.__dshOwuiI18n`），host 在
@@ -23,7 +31,11 @@
 ~/.dsh/plugins/dsh-owui-chat2api-<version>/
   package.json        name: dsh-owui-chat2api, dsh.bundle.patch -> cordis.patch.yml
   cordis.patch.yml    把插件行插入 profile 的组合文件
-  lib/index.js        HOST：子进程 / 诊断缓存 / 路由 / tapIndex
+  lib/index.js        HOST：路由 / tapIndex / autostart（接线层）
+  lib/config.js       HOST：控制文件配置 + 共享路径
+  lib/diagnostics.js  HOST：python/依赖缓存探测
+  lib/proxy-process.js  HOST：子进程生命周期 / env 白名单 / 日志尾部 / 登录记账
+  lib/effort-scan.js  HOST：模型与 reasoningEfforts 写入 settings.yaml
   lib/panel.js        CLIENT：自包含控制面板（逻辑）
   lib/panel-i18n.js   CLIENT：面板中英字典（先于 panel.js 注入）
   lib/panel.css       CLIENT：面板样式（/panel.css 提供）
