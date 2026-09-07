@@ -17,6 +17,10 @@ DeepSeek Harness（或任何 OpenAI 兼容客户端）
    你的 Open WebUI     （浏览器登录一次，之后自动复用）
 ```
 
+<p align="center">
+  <img width="710" height="565" alt="DSH 里的 dsh-owui-chat2api 控制面板：状态、配置、用量看板与进程日志" src="https://github.com/user-attachments/assets/4c59820b-e82a-45bc-9979-b202bed6d3cd" />
+</p>
+
 ## 功能 ✨
 
 - ▶️ 从面板启动 / 停止代理

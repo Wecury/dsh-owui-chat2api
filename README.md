@@ -18,6 +18,10 @@ DeepSeek Harness (or any OpenAI-compatible client)
    your Open WebUI      (browser sign-in once, session reused afterwards)
 ```
 
+<p align="center">
+  <img width="690" height="560" alt="The dsh-owui-chat2api control panel inside DSH: status, config, usage dashboard and process log" src="https://github.com/user-attachments/assets/65cd7151-bf5a-4a4c-aaca-85f5ab7f0043" />
+</p>
+
 ## Features ✨
 
 - ▶️ Start / stop the proxy from the panel
