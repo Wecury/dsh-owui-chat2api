@@ -47,7 +47,7 @@
 | GET  | `/dsh-owui-chat2api/panel.js` | 面板脚本（经 tapIndex） |
 | GET  | `/dsh-owui-chat2api/panel-i18n.js` | 面板字典（先于 panel.js 注入） |
 | GET  | `/dsh-owui-chat2api/panel.css` | 面板样式（经 tapIndex） |
-| GET  | `/dsh-owui-chat2api/api/status` | 配置 + 运行状态 + 诊断 + 日志尾部 |
+| GET  | `/dsh-owui-chat2api/api/status` | 配置 + 运行状态 + 诊断 + 最近一次登录结果 + 日志尾部 |
 | GET/POST | `/dsh-owui-chat2api/api/config` | 读取 / 保存配置（false→true 时自动启动） |
 | POST | `/dsh-owui-chat2api/api/start` | 启动 `chat2api.py` |
 | POST | `/dsh-owui-chat2api/api/stop` | 停止 `chat2api.py` |
