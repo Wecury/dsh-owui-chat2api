@@ -90,10 +90,10 @@
   background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 9%, transparent);
   border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 28%, transparent); }
 #dsh-owui-panel .ow-note-err .ow-note-ic { background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 18%, transparent); color: var(--dsw-alias-state-error-primary); }
-#dsh-owui-panel .ow-note-info { color: var(--dsw-alias-label-primary);
-  background: color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);
-  border-color: var(--dsw-alias-border-l1, rgba(128,128,128,.28)); }
-#dsh-owui-panel .ow-note-info .ow-note-ic { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 16%, transparent); color: var(--dsw-alias-brand-primary); }
+#dsh-owui-panel .ow-note-info { color: var(--dsw-alias-brand-primary);
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 9%, transparent);
+  border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 26%, transparent); }
+#dsh-owui-panel .ow-note-info .ow-note-ic { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 18%, transparent); color: var(--dsw-alias-brand-primary); }
 
 #dsh-owui-panel .ow-btn { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 16%, transparent);
   color: var(--dsw-alias-brand-primary);
