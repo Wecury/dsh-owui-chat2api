@@ -15,7 +15,8 @@
 - `lib/prices.js` —— 手动价格表（每百万 tokens、单一货币符号），host 在
   `/api/usage` 上叠加逐模型成本；未填价的模型只统计、不计费。
 - `lib/panel.js` —— **CLIENT** 半区：注入 DSH 网页壳的 Vanilla JS 面板逻辑
-  （车头自包含，不使用 Cordis 客户端模块）。
+  （车头自包含，不使用 Cordis 客户端模块）；图标为内联 Tabler SVG
+  （`ICONS` 表 + `ic()` 助手，零外部请求，stroke 跟随主题色）。
 - `lib/panel-i18n.js` —— 面板中英字典（`window.__dshOwuiI18n`），host 在
   `panel.js` 之前注入；panel.js 读不到时降级显示 key，不会崩。
 - `lib/panel.css` —— 面板样式，由 host 经 `/dsh-owui-chat2api/panel.css`
