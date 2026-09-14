@@ -38,8 +38,12 @@
 #dsh-owui-panel .ow-lang:hover, #dsh-owui-panel .ow-close:hover { background: var(--dsw-alias-bg-layer-2, rgba(128,128,128,.15)); color: var(--dsw-alias-label-primary, #fff); }
 #dsh-owui-panel .ow-body { padding: 4px 20px 20px; }
 #dsh-owui-panel .ow-sec { margin-top: 14px; }
+/* Section headers carry a per-section accent hue (--ow-hc set inline):
+   the icon gets the full hue, the uppercase label a 72% blend with the
+   neutral label colour, so each section reads as its own colour family. */
 #dsh-owui-panel .ow-sec-h { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
-  color: var(--dsw-alias-label-secondary, #9ca3af); margin: 0 2px 8px; }
+  color: color-mix(in srgb, var(--ow-hc, #9ca3af) 72%, var(--dsw-alias-label-secondary, #9ca3af)); margin: 0 2px 8px; }
+#dsh-owui-panel .ow-sec-h .ow-ic { color: var(--ow-hc, currentColor); opacity: 1; }
 
 /* Tabler icons (inlined SVG, stroke = currentColor). Section headers get a
    13px glyph; action buttons align the 12px glyph with the 12px text. */
@@ -166,7 +170,8 @@
   color: var(--dsw-alias-brand-primary); border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 42%, transparent); }
 
 #dsh-owui-panel .ow-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 8px; margin-bottom: 14px; }
-#dsh-owui-panel .ow-stat .v { font-size: 17px; font-weight: 650; letter-spacing: .2px; }
+#dsh-owui-panel .ow-stat .v { font-size: 17px; font-weight: 650; letter-spacing: .2px;
+  color: var(--ow-sc, var(--dsw-alias-label-primary, #e5e7eb)); }
 #dsh-owui-panel .ow-stat .l { font-size: 10px; color: var(--dsw-alias-label-secondary, #9ca3af); margin-top: 1px; text-transform: uppercase; letter-spacing: .03em; }
 
 #dsh-owui-panel .ow-mbar-list { margin-top: 4px; }
@@ -181,7 +186,7 @@
 #dsh-owui-panel .ow-mbar-track { height: 4px; margin-top: 5px; border-radius: 999px;
   background: var(--dsw-alias-border-l2, rgba(128,128,128,.22)); overflow: hidden; }
 #dsh-owui-panel .ow-mbar-fill { height: 100%; border-radius: 999px;
-  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 65%, transparent); }
+  background: var(--ow-bar, color-mix(in srgb, var(--dsw-alias-brand-primary) 65%, transparent)); }
 
 /* Price table editor (cost estimation): model name + input/cached/output
    price per 1M tokens, in a user-chosen currency symbol. */
