@@ -12,6 +12,8 @@
   流程与结果记账、进程日志尾部、python 子进程的 env 白名单。
 - `lib/effort-scan.js` —— 一键扫描后端模型，把模型 + `reasoningEfforts`
   写入 `~/.dsh/settings.yaml`（自动备份、写后自验证）。
+- `lib/prices.js` —— 手动价格表（每百万 tokens、单一货币符号），host 在
+  `/api/usage` 上叠加逐模型成本；未填价的模型只统计、不计费。
 - `lib/panel.js` —— **CLIENT** 半区：注入 DSH 网页壳的 Vanilla JS 面板逻辑
   （车头自包含，不使用 Cordis 客户端模块）。
 - `lib/panel-i18n.js` —— 面板中英字典（`window.__dshOwuiI18n`），host 在
@@ -36,6 +38,7 @@
   lib/diagnostics.js  HOST：python/依赖缓存探测
   lib/proxy-process.js  HOST：子进程生命周期 / env 白名单 / 日志尾部 / 登录记账
   lib/effort-scan.js  HOST：模型与 reasoningEfforts 写入 settings.yaml
+  lib/prices.js       HOST：手动价格表 + 逐模型成本估算
   lib/panel.js        CLIENT：自包含控制面板（逻辑）
   lib/panel-i18n.js   CLIENT：面板中英字典（先于 panel.js 注入）
   lib/panel.css       CLIENT：面板样式（/panel.css 提供）
@@ -53,6 +56,8 @@
 - 登录凭据：`<DSH_HOME>/dsh-owui-chat2api-token.json`——通过环境变量
   `DSH_OWUI_TOKEN_FILE` 传给 python（首次运行会把旧版插件目录里的
   `token.json` 迁移过来）。
+- 价格表：`<DSH_HOME>/dsh-owui-chat2api-prices.json`——每模型
+  `{input, cached, output}` 单价（每百万 tokens）+ 货币符号，面板可直接编辑。
 
 ## 路由（同源）
 
@@ -67,7 +72,8 @@
 | POST | `/dsh-owui-chat2api/api/stop` | 停止 `chat2api.py` |
 | POST | `/dsh-owui-chat2api/api/login` | 一次性 Open WebUI 登录 |
 | POST | `/dsh-owui-chat2api/api/effort-scan` / `effort-scan-force` | 启动模型扫描（立即返回，结果经 status 轮询 + 面板通知） |
-| GET  | `/dsh-owui-chat2api/api/usage?range=` | 同源代理到 `http://<host>:<port>/v1/usage` |
+| GET  | `/dsh-owui-chat2api/api/usage?range=` | 同源代理到 `http://<host>:<port>/v1/usage`，host 侧叠加逐模型成本 |
+| GET/POST | `/dsh-owui-chat2api/api/prices` | 读取 / 保存手动价格表 |
 
 用量走同源（经 `/api/usage`），所以 HTTPS 与外网访问 DSH 时也没有混合内容 /
 CORS 问题。

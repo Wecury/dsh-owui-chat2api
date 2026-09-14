@@ -1051,6 +1051,12 @@ class Handler(BaseHTTPRequestHandler):
             body["reasoning_effort"] = effort
 
         stream = bool(body.get("stream"))
+        if stream and not body.get("stream_options"):
+            # DSH addition (borrowed from the author's openwebui-console):
+            # streamed replies often carry no usage block unless the client
+            # asks for one, and the usage DB would have to fall back to
+            # estimates. Clients that set their own stream_options win.
+            body["stream_options"] = {"include_usage": True}
         model = body.get("model")
         call_start = time.time()
         try:
