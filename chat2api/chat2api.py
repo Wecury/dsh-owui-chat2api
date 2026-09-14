@@ -41,7 +41,6 @@ import argparse
 import json
 import os
 import re
-import sqlite3
 import sys
 import threading
 import time
@@ -50,17 +49,13 @@ from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import requests
+# Usage store, token estimation and the effort-probe cache live in a
+# sibling module (DSH addition) so this file stays close to upstream's
+# proxy core for diffing.
+from owui_usage import (SSE_DATA_RE, build_usage_row, effort_cache_get,
+                        effort_cache_set, extract_usage_block, usage_insert,
+                        usage_query)
 
-# Optional token estimator. tiktoken is NOT a hard dependency: users without it
-# still get real usage when the upstream returns one, and an `estimated=true`
-# row of zeros otherwise. Importing lazily means a missing tiktoken never
-# blocks the proxy.
-_TIKTOKEN = None
-try:
-    import tiktoken as _tiktoken_mod  # type: ignore
-    _TIKTOKEN = _tiktoken_mod
-except Exception:
-    _TIKTOKEN = None
 
 # Force UTF-8 on stdout/stderr so printing emojis / non-GBK text (e.g. model
 # replies) never raises UnicodeEncodeError on a Windows console stuck on GBK.
@@ -135,379 +130,6 @@ CHROME_PATHS = [
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
 ]
-
-
-# ---------------------------------------------------------------- usage store
-# SQLite-backed per-call token accounting. Lives in `usage.db` next to the
-# script; chat2api's own private asset, never read by DSH directly (DSH reads
-# it through the proxy's `/v1/usage` endpoint). Short-lived connections per
-# op keep it thread-safe without an extra lock.
-
-# DSH plugin: the host passes DSH_OWUI_USAGE_DB so history lives in a stable
-# location (<DSH_HOME>/dsh-owui-chat2api-usage.db) that survives plugin updates
-# and renames. Standalone runs (no env var) keep the legacy in-place path.
-USAGE_DB = os.environ.get("DSH_OWUI_USAGE_DB") or os.path.join(HERE, "usage.db")
-
-_USAGE_SCHEMA = """
-CREATE TABLE IF NOT EXISTS usage (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    ts          REAL       NOT NULL,            -- unix seconds
-    model       TEXT       NOT NULL,
-    in_tokens   INTEGER    NOT NULL DEFAULT 0,
-    out_tokens  INTEGER    NOT NULL DEFAULT 0,
-    cached_tokens INTEGER  NOT NULL DEFAULT 0,
-    latency_ms  INTEGER    NOT NULL DEFAULT 0,
-    status      INTEGER    NOT NULL,            -- HTTP status (200 on success)
-    is_stream   INTEGER    NOT NULL DEFAULT 0,  -- 0/1
-    estimated   INTEGER    NOT NULL DEFAULT 0,  -- 1 when usage was not in the
-                                                -- upstream response and was
-                                                -- zero-filled or estimated
-    error       TEXT       NOT NULL DEFAULT ''
-);
-CREATE INDEX IF NOT EXISTS usage_ts_idx   ON usage(ts);
-CREATE INDEX IF NOT EXISTS usage_model_idx ON usage(model);
-CREATE TABLE IF NOT EXISTS effort_probe (
-    model   TEXT PRIMARY KEY,
-    support INTEGER NOT NULL,          -- 1 = backend accepted reasoning_effort, 0 = rejected
-    at      REAL    NOT NULL,          -- unix seconds of the probe
-    err     TEXT    NOT NULL DEFAULT ''
-);
-"""
-
-
-def _usage_db_connect():
-    """Open a per-op connection. `check_same_thread=False` is belt-and-braces
-    since we open/close within each call, never share a connection."""
-    conn = sqlite3.connect(USAGE_DB, timeout=5, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def _usage_init():
-    """Create the schema once on import / first run."""
-    conn = _usage_db_connect()
-    try:
-        conn.executescript(_USAGE_SCHEMA)
-        conn.commit()
-    finally:
-        conn.close()
-
-
-_usage_init()
-
-
-_USAGE_INSERT_COUNT = 0  # rows written so far; retention pruning stays occasional
-
-
-def usage_insert(row: dict):
-    global _USAGE_INSERT_COUNT
-    _USAGE_INSERT_COUNT += 1
-    conn = _usage_db_connect()
-    try:
-        conn.execute(
-            "INSERT INTO usage "
-            "(ts, model, in_tokens, out_tokens, cached_tokens, "
-            " latency_ms, status, is_stream, estimated, error) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (
-                row["ts"],
-                row["model"],
-                int(row.get("in_tokens") or 0),
-                int(row.get("out_tokens") or 0),
-                int(row.get("cached_tokens") or 0),
-                int(row.get("latency_ms") or 0),
-                int(row.get("status") or 0),
-                1 if row.get("is_stream") else 0,
-                1 if row.get("estimated") else 0,
-                str(row.get("error") or "")[:500],
-            ),
-        )
-        # Bounded history: occasionally drop rows older than the retention
-        # window (env DSH_OWUI_USAGE_RETENTION_DAYS, default 365) so the table
-        # cannot grow without bound. Runs every 100 inserts, not per row.
-        if _USAGE_INSERT_COUNT % 100 == 0:
-            days = int(os.environ.get("DSH_OWUI_USAGE_RETENTION_DAYS", "365"))
-            conn.execute("DELETE FROM usage WHERE ts < ?", (time.time() - days * 86400,))
-        conn.commit()
-    finally:
-        conn.close()
-
-
-def _effort_cache_get(model: str) -> int | None:
-    """Cached --auto-effort-probe result: 1 supported, 0 not, None unknown."""
-    conn = _usage_db_connect()
-    try:
-        row = conn.execute("SELECT support FROM effort_probe WHERE model = ?", (model,)).fetchone()
-        return int(row["support"]) if row is not None else None
-    except Exception:
-        return None
-    finally:
-        conn.close()
-
-
-def _effort_cache_set(model: str, support: int, err: str = ""):
-    conn = _usage_db_connect()
-    try:
-        conn.execute(
-            "INSERT INTO effort_probe (model, support, at, err) VALUES (?,?,?,?) "
-            "ON CONFLICT(model) DO UPDATE SET support = excluded.support, "
-            "at = excluded.at, err = excluded.err",
-            (model, 1 if support else 0, time.time(), (err or "")[:200]),
-        )
-        conn.commit()
-    except Exception:
-        pass
-    finally:
-        conn.close()
-
-
-def usage_query(range_kind: str = "today", limit: int = 0) -> dict:
-    """Aggregate usage rows for a time range plus per-model breakdown.
-
-    range_kind: 'today' | 'yesterday' | 'month' | 'cumulative' | 'recent'
-    limit: when range_kind == 'recent', how many individual rows to return.
-    """
-    now = time.time()
-    today_local = time.localtime(now)
-    # local midnight as unix seconds
-    midnight = time.mktime(
-        time.struct_time(
-            (today_local.tm_year, today_local.tm_mon, today_local.tm_mday,
-             0, 0, 0, 0, 0, -1)
-        )
-    )
-
-    params: tuple = ()
-    where = ""
-    if range_kind == "today":
-        where = "WHERE ts >= ?"
-        params = (midnight,)
-    elif range_kind == "yesterday":
-        where = "WHERE ts >= ? AND ts < ?"
-        params = (midnight - 86400, midnight)
-    elif range_kind == "month":
-        # first day of this month, local midnight
-        month_start = time.mktime(
-            time.struct_time(
-                (today_local.tm_year, today_local.tm_mon, 1, 0, 0, 0, 0, 0, -1)
-            )
-        )
-        where = "WHERE ts >= ?"
-        params = (month_start,)
-    elif range_kind == "recent":
-        pass  # no WHERE; returns individual rows below
-
-    conn = _usage_db_connect()
-    try:
-        if range_kind == "recent":
-            rows = conn.execute(
-                "SELECT ts, model, in_tokens, out_tokens, cached_tokens, "
-                "latency_ms, status, is_stream, estimated, error "
-                "FROM usage ORDER BY ts DESC LIMIT ?",
-                (int(limit) if limit else 100,),
-            ).fetchall()
-            return {"range": range_kind, "rows": [dict(r) for r in rows]}
-
-        agg = conn.execute(
-            "SELECT "
-            "  COUNT(*)                       AS calls, "
-            "  COALESCE(SUM(in_tokens),0)     AS in_tokens, "
-            "  COALESCE(SUM(out_tokens),0)    AS out_tokens, "
-            "  COALESCE(SUM(cached_tokens),0) AS cached_tokens, "
-            "  COALESCE(SUM(latency_ms),0)    AS latency_ms, "
-            "  COALESCE(SUM(status != 200),0) AS errors "
-            f"FROM usage {where}",
-            params,
-        ).fetchone()
-
-        per_model = conn.execute(
-            "SELECT model, "
-            "  COUNT(*)                       AS calls, "
-            "  COALESCE(SUM(in_tokens),0)     AS in_tokens, "
-            "  COALESCE(SUM(out_tokens),0)    AS out_tokens, "
-            "  COALESCE(SUM(cached_tokens),0) AS cached_tokens, "
-            "  COALESCE(SUM(latency_ms),0)    AS latency_ms, "
-            "  COALESCE(SUM(status != 200),0) AS errors "
-            f"FROM usage {where} GROUP BY model ORDER BY calls DESC",
-            params,
-        ).fetchall()
-
-        # Daily series (local date -> per-day totals) for charts.
-        daily = conn.execute(
-            "SELECT date(ts, 'unixepoch', 'localtime') AS day, "
-            "  COUNT(*)                       AS calls, "
-            "  COALESCE(SUM(in_tokens),0)     AS in_tokens, "
-            "  COALESCE(SUM(out_tokens),0)    AS out_tokens, "
-            "  COALESCE(SUM(cached_tokens),0) AS cached_tokens "
-            f"FROM usage {where} GROUP BY day ORDER BY day",
-            params,
-        ).fetchall()
-
-        return {
-            "range": range_kind,
-            "since": int(params[0]) if params else None,
-            "summary": dict(agg) if agg else None,
-            "per_model": [dict(r) for r in per_model],
-            "daily": [dict(r) for r in daily],
-        }
-    finally:
-        conn.close()
-
-
-# ---------------------------------------------- usage parsing (per-call)
-# We extract the upstream `usage` object from three positions, in priority:
-#   1. final streamed chunk's `usage` field (OpenAI/vLLM cumulative snapshot)
-#   2. non-streamed JSON response's `usage` field
-#   3. tiktoken estimation on the request messages + completion text
-# If none of the above yields anything, we zero-fill and mark `estimated=true`.
-
-_SSE_DATA_RE = re.compile(r"^data:\s*(.+)$", re.DOTALL)
-
-
-def _extract_usage_block(obj: dict) -> dict | None:
-    """Pull the canonical usage object out of an OpenAI-shaped response body.
-    Returns None if no usable usage is present."""
-    if not isinstance(obj, dict):
-        return None
-    usage = obj.get("usage")
-    if not isinstance(usage, dict):
-        return None
-    return usage
-
-
-def _cached_tokens_from_usage(usage: dict) -> int:
-    """vLLM/OpenAI report cache hits in a few shapes; normalise them."""
-    if not isinstance(usage, dict):
-        return 0
-    details = usage.get("prompt_tokens_details")
-    if isinstance(details, dict):
-        v = details.get("cached_tokens")
-        if isinstance(v, (int, float)):
-            return int(v)
-    # vLLM sometimes flattens it to the top level.
-    v = usage.get("cached_tokens")
-    if isinstance(v, (int, float)):
-        return int(v)
-    return 0
-
-
-def _tiktoken_for(model: str):
-    """Return an encoder for a model id, tolerate unknown model names by
-    falling back to the cl100k/o200k base. Returns None if tiktoken missing."""
-    if _TIKTOKEN is None:
-        return None
-    try:
-        return _TIKTOKEN.encoding_for_model(model)
-    except Exception:
-        try:
-            # `o200k_base` covers GPT-4o / o1; `cl100k_base` covers GPT-4/3.5.
-            return _TIKTOKEN.get_encoding("o200k_base")
-        except Exception:
-            try:
-                return _TIKTOKEN.get_encoding("cl100k_base")
-            except Exception:
-                return None
-
-
-def _stringify_message(msg) -> str:
-    """Flatten one chat message to a rough string for tiktoken estimation."""
-    if not isinstance(msg, dict):
-        return str(msg or "")
-    parts = [str(msg.get("role") or "")]
-    content = msg.get("content")
-    if isinstance(content, str):
-        parts.append(content)
-    elif isinstance(content, list):
-        for c in content:
-            if isinstance(c, dict):
-                parts.append(str(c.get("text") or c.get("content") or ""))
-            else:
-                parts.append(str(c))
-    if msg.get("name"):
-        parts.append(str(msg["name"]))
-    return "\n".join(parts)
-
-
-def _estimate_prompt_tokens(messages, model: str) -> int:
-    enc = _tiktoken_for(model)
-    if enc is None or not isinstance(messages, list):
-        return 0
-    total = 0
-    try:
-        for m in messages:
-            total += len(enc.encode(_stringify_message(m)))
-        # ~3 per message overhead (role/sep) is a decent rule of thumb.
-        total += 3 * len(messages)
-    except Exception:
-        return 0
-    return int(total)
-
-
-def _estimate_completion_tokens(text: str, model: str) -> int:
-    enc = _tiktoken_for(model)
-    if enc is None or not text:
-        return 0
-    try:
-        return int(len(enc.encode(text)))
-    except Exception:
-        return 0
-
-
-def build_usage_row(
-    *,
-    model: str,
-    status: int,
-    is_stream: bool,
-    latency_ms: int,
-    body: dict,
-    upstream_usage: dict | None = None,
-    completion_text: str = "",
-    error: str = "",
-) -> dict:
-    """Compose one usage row from everything we know about a call.
-
-    `upstream_usage` is the parsed `usage` object (streamed chunk or
-    non-streamed body); may be None on the no-usage branch.
-    `completion_text` is only used by the estimation fallback path; for
-    streaming we don't buffer the whole completion, so that estimate stays 0.
-    """
-    row = {
-        "ts": time.time(),
-        "model": model or "",
-        "in_tokens": 0,
-        "out_tokens": 0,
-        "cached_tokens": 0,
-        "latency_ms": int(latency_ms or 0),
-        "status": int(status or 0),
-        "is_stream": bool(is_stream),
-        "estimated": False,
-        "error": error or "",
-    }
-
-    used_upstream = False
-    if isinstance(upstream_usage, dict):
-        pt = upstream_usage.get("prompt_tokens")
-        ct = upstream_usage.get("completion_tokens")
-        if isinstance(pt, (int, float)) or isinstance(ct, (int, float)):
-            row["in_tokens"] = int(pt or 0)
-            row["out_tokens"] = int(ct or 0)
-            row["cached_tokens"] = _cached_tokens_from_usage(upstream_usage)
-            used_upstream = True
-
-    if not used_upstream and status == 200:
-        # Estimation fallback: only about the prompt (we never buffer the
-        # whole streamed completion; for non-stream we have completion_text).
-        messages = body.get("messages") if isinstance(body, dict) else None
-        est_in = _estimate_prompt_tokens(messages, model)
-        est_out = _estimate_completion_tokens(completion_text, model)
-        row["in_tokens"] = est_in
-        row["out_tokens"] = est_out
-        row["estimated"] = True
-    elif not used_upstream and status != 200:
-        # Failed call: nothing to estimate, leave zeros, mark estimated=false.
-        row["estimated"] = False
-
-    return row
 
 
 class TokenStore:
@@ -861,7 +483,7 @@ def auto_probe_efforts(proxy: "Proxy", force: bool) -> list[str]:
     for m in base_ids:
         if m in EFFORT_MODELS:
             continue  # already registered manually
-        cached = None if force else _effort_cache_get(m)
+        cached = None if force else effort_cache_get(m)
         if cached == 1:
             out.append(m)
             continue
@@ -874,7 +496,7 @@ def auto_probe_efforts(proxy: "Proxy", force: bool) -> list[str]:
 
     def probe(m: str) -> tuple[str, bool, str]:
         ok, err = proxy._probe_effort(m)
-        _effort_cache_set(m, 1 if ok else 0, err)
+        effort_cache_set(m, 1 if ok else 0, err)
         return m, ok, err
 
     with ThreadPoolExecutor(max_workers=8) as ex:
@@ -903,7 +525,7 @@ def scan_efforts(proxy: "Proxy", force: bool = False) -> dict[str, bool]:
         mid = m.get("id")
         if not mid:
             continue
-        cached = None if force else _effort_cache_get(mid)
+        cached = None if force else effort_cache_get(mid)
         if cached == 1 or cached == 0:
             result[mid] = bool(cached)
             continue
@@ -913,7 +535,7 @@ def scan_efforts(proxy: "Proxy", force: bool = False) -> dict[str, bool]:
 
     def probe(mid: str) -> tuple[str, bool]:
         ok, err = proxy._probe_effort(mid)
-        _effort_cache_set(mid, 1 if ok else 0, err)
+        effort_cache_set(mid, 1 if ok else 0, err)
         return mid, ok
 
     with ThreadPoolExecutor(max_workers=8) as ex:
@@ -1109,7 +731,7 @@ class Handler(BaseHTTPRequestHandler):
             usage_insert(build_usage_row(
                 model=model, status=200, is_stream=False,
                 latency_ms=latency_ms, body=body,
-                upstream_usage=_extract_usage_block(payload),
+                upstream_usage=extract_usage_block(payload),
                 completion_text=completion_text))
             self._json(200, payload)
             return
@@ -1147,11 +769,11 @@ class Handler(BaseHTTPRequestHandler):
                 # Cheap inline usage scan — only attempt JSON parse on
                 # `data: {...}` lines, never on comments or `data: ` empty.
                 if raw.lstrip().startswith("data:") and "{" in raw:
-                    m = _SSE_DATA_RE.match(raw.strip())
+                    m = SSE_DATA_RE.match(raw.strip())
                     if m:
                         try:
                             chunk = json.loads(m.group(1))
-                            u = _extract_usage_block(chunk)
+                            u = extract_usage_block(chunk)
                             if u is not None:
                                 last_usage = u
                             try:
@@ -1210,130 +832,21 @@ class Handler(BaseHTTPRequestHandler):
 
 
 # ---------------------------------------------------------------- dashboard
-# A zero-build static page served at GET /dashboard. A ~40-line <script>
-# fetches /v1/usage?range=... and renders summary cards, a per-day token bar
-# chart (pure SVG, no charting lib), and a per-model table. No external
-# libraries, no CDN dependency. Kept here as a single Python string so the
-# proxy stays a one-file project.
+# A zero-build static page served at GET /dashboard. Lives in dashboard.html
+# next to this script (read once, then cached) so the HTML/JS/CSS get real
+# syntax highlighting and lint instead of living inside a python string. The
+# page is fully static and fetches data itself via fetch().
 
-_DASHBOARD_HTML = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>chat2api · usage dashboard</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-  :root { color-scheme: light dark; --muted: #888; --accent: #4f7cff; }
-  * { box-sizing: border-box; }
-  body { font: 14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; margin: 24px;
-         max-width: 1100px; }
-  h1 { font-size: 18px; margin: 0 0 4px; }
-  .sub { color: var(--muted); margin-bottom: 20px; }
-  .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
-  .tabs button { padding: 4px 10px; border: 1px solid #ccc; border-radius: 6px;
-                 background: transparent; cursor: pointer; font: inherit; }
-  .tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .cards { display: grid; grid-template-columns: repeat(auto-fit,minmax(160px,1fr));
-           gap: 12px; margin-bottom: 24px; }
-  .card { border: 1px solid #ddd; border-radius: 10px; padding: 14px; }
-  .card .v { font-size: 22px; font-weight: 600; }
-  .card .l { color: var(--muted); font-size: 12px; margin-top: 2px; }
-  section { margin-bottom: 24px; }
-  section h2 { font-size: 14px; margin: 0 0 8px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid #eee; }
-  th:first-child, td:first-child { text-align: left; }
-  .empty { color: var(--muted); font-style: italic; }
-  svg { width: 100%; height: 120px; }
-  a { color: var(--accent); }
-</style>
-</head>
-<body>
-<h1>chat2api · usage dashboard</h1>
-<div class="sub" id="sub">Loading…</div>
-
-<div class="tabs">
-  <button data-r="today" class="active">Today</button>
-  <button data-r="yesterday">Yesterday</button>
-  <button data-r="month">This month</button>
-  <button data-r="cumulative">Cumulative</button>
-</div>
-
-<div id="report"><span class="empty">Loading…</span></div>
-
-<script>
-let currentRange = "today";
-const tabs = document.querySelectorAll(".tabs button");
-tabs.forEach(b => b.onclick = () => {
-  tabs.forEach(x => x.classList.remove("active"));
-  b.classList.add("active");
-  currentRange = b.dataset.r;
-  load();
-});
-
-function fmt(n) { return (n||0).toLocaleString(); }
-
-async function load() {
-  document.getElementById("sub").textContent = "range: " + currentRange + " · loading…";
-  const r = await fetch("/v1/usage?range=" + currentRange);
-  const d = await r.json();
-  render(d);
-}
-
-function render(d) {
-  const s = d.summary || {calls:0,in_tokens:0,out_tokens:0,cached_tokens:0,latency_ms:0,errors:0};
-  document.getElementById("sub").textContent =
-    "range=" + d.range + (d.since ? " · since " + new Date(d.since*1000).toLocaleString() : "");
-
-  const cards = [
-    ["Calls", fmt(s.calls)],
-    ["Input tokens", fmt(s.in_tokens)],
-    ["Output tokens", fmt(s.out_tokens)],
-    ["Cached tokens", fmt(s.cached_tokens)],
-    ["Avg latency", s.calls ? fmt(Math.round(s.latency_ms/s.calls)) + " ms" : "—"],
-    ["Errors", fmt(s.errors)],
-  ].map(([l,v]) => `<div class="card"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
-
-  const maxDay = Math.max(1, ...(d.daily||[]).map(x => (x.in_tokens||0)+(x.out_tokens||0)));
-  const bars = (d.daily||[]).map((x,i) => {
-    const total = (x.in_tokens||0) + (x.out_tokens||0);
-    const h = Math.round(total / maxDay * 88);
-    const x0 = 30 + i * Math.min(40, Math.max(8, 800/Math.max(1,d.daily.length) - 4));
-    const color = x.out_tokens > x.in_tokens ? "#e86" : "#4f7cff";
-    return `<rect x="${x0}" y="${100-h}" width="${Math.min(36, Math.max(6, 800/Math.max(1,d.daily.length) - 8))}" height="${h}" fill="${color}"><title>${x.day}: in ${fmt(x.in_tokens)} / out ${fmt(x.out_tokens)} / cached ${fmt(x.cached_tokens)}</title></rect>`;
-  }).join("");
-  const chart = d.daily && d.daily.length
-    ? `<svg viewBox="0 0 900 110" preserveAspectRatio="xMinYMid meet">${bars}</svg>`
-    : `<div class="empty">no data in this range</div>`;
-
-  const rows = (d.per_model||[]).map(m =>
-    `<tr><td>${m.model||"—"}</td><td>${fmt(m.calls)}</td><td>${fmt(m.in_tokens)}</td><td>${fmt(m.out_tokens)}</td><td>${fmt(m.cached_tokens)}</td><td>${m.calls ? Math.round(m.latency_ms/m.calls) : 0}</td><td>${fmt(m.errors)}</td></tr>`
-  ).join("");
-  const table = rows
-    ? `<table><thead><tr><th>Model</th><th>Calls</th><th>In</th><th>Out</th><th>Cached</th><th>Avg ms</th><th>Err</th></tr></thead><tbody>${rows}</tbody></table>`
-    : `<div class="empty">no calls in this range</div>`;
-
-  document.getElementById("report").innerHTML =
-    `<div class="cards">${cards}</div>` +
-    `<section><h2>Daily in+out tokens</h2>${chart}</section>` +
-    `<section><h2>Per model</h2>${table}</section>`;
-}
-
-load();
-setInterval(load, 10000); // auto-refresh every 10s
-</script>
-</body>
-</html>
-"""
+_DASHBOARD_CACHE = None
 
 
 def _render_dashboard_html() -> str:
-    """Return the dashboard page. Wrapped in a function so we never interpolate
-    user input into the HTML template — the page is fully static and fetches
-    data itself via fetch()."""
-    return _DASHBOARD_HTML
-
-
+    """Return the bundled dashboard page (dashboard.html beside this script)."""
+    global _DASHBOARD_CACHE
+    if _DASHBOARD_CACHE is None:
+        with open(os.path.join(HERE, "dashboard.html"), "r", encoding="utf-8") as f:
+            _DASHBOARD_CACHE = f.read()
+    return _DASHBOARD_CACHE
 def _cmd_status(args):
     """Show token/login status (may re-open the browser to re-auth on 401)."""
     store = TokenStore(TOKEN_FILE, args.base_url)

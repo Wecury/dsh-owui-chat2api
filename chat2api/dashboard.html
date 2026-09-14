@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>chat2api · usage dashboard</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { color-scheme: light dark; --muted: #888; --accent: #4f7cff; }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; margin: 24px;
+         max-width: 1100px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin-bottom: 20px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+  .tabs button { padding: 4px 10px; border: 1px solid #ccc; border-radius: 6px;
+                 background: transparent; cursor: pointer; font: inherit; }
+  .tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit,minmax(160px,1fr));
+           gap: 12px; margin-bottom: 24px; }
+  .card { border: 1px solid #ddd; border-radius: 10px; padding: 14px; }
+  .card .v { font-size: 22px; font-weight: 600; }
+  .card .l { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  section { margin-bottom: 24px; }
+  section h2 { font-size: 14px; margin: 0 0 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid #eee; }
+  th:first-child, td:first-child { text-align: left; }
+  .empty { color: var(--muted); font-style: italic; }
+  svg { width: 100%; height: 120px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<h1>chat2api · usage dashboard</h1>
+<div class="sub" id="sub">Loading…</div>
+
+<div class="tabs">
+  <button data-r="today" class="active">Today</button>
+  <button data-r="yesterday">Yesterday</button>
+  <button data-r="month">This month</button>
+  <button data-r="cumulative">Cumulative</button>
+</div>
+
+<div id="report"><span class="empty">Loading…</span></div>
+
+<script>
+let currentRange = "today";
+const tabs = document.querySelectorAll(".tabs button");
+tabs.forEach(b => b.onclick = () => {
+  tabs.forEach(x => x.classList.remove("active"));
+  b.classList.add("active");
+  currentRange = b.dataset.r;
+  load();
+});
+
+function fmt(n) { return (n||0).toLocaleString(); }
+
+async function load() {
+  document.getElementById("sub").textContent = "range: " + currentRange + " · loading…";
+  const r = await fetch("/v1/usage?range=" + currentRange);
+  const d = await r.json();
+  render(d);
+}
+
+function render(d) {
+  const s = d.summary || {calls:0,in_tokens:0,out_tokens:0,cached_tokens:0,latency_ms:0,errors:0};
+  document.getElementById("sub").textContent =
+    "range=" + d.range + (d.since ? " · since " + new Date(d.since*1000).toLocaleString() : "");
+
+  const cards = [
+    ["Calls", fmt(s.calls)],
+    ["Input tokens", fmt(s.in_tokens)],
+    ["Output tokens", fmt(s.out_tokens)],
+    ["Cached tokens", fmt(s.cached_tokens)],
+    ["Avg latency", s.calls ? fmt(Math.round(s.latency_ms/s.calls)) + " ms" : "—"],
+    ["Errors", fmt(s.errors)],
+  ].map(([l,v]) => `<div class="card"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+
+  const maxDay = Math.max(1, ...(d.daily||[]).map(x => (x.in_tokens||0)+(x.out_tokens||0)));
+  const bars = (d.daily||[]).map((x,i) => {
+    const total = (x.in_tokens||0) + (x.out_tokens||0);
+    const h = Math.round(total / maxDay * 88);
+    const x0 = 30 + i * Math.min(40, Math.max(8, 800/Math.max(1,d.daily.length) - 4));
+    const color = x.out_tokens > x.in_tokens ? "#e86" : "#4f7cff";
+    return `<rect x="${x0}" y="${100-h}" width="${Math.min(36, Math.max(6, 800/Math.max(1,d.daily.length) - 8))}" height="${h}" fill="${color}"><title>${x.day}: in ${fmt(x.in_tokens)} / out ${fmt(x.out_tokens)} / cached ${fmt(x.cached_tokens)}</title></rect>`;
+  }).join("");
+  const chart = d.daily && d.daily.length
+    ? `<svg viewBox="0 0 900 110" preserveAspectRatio="xMinYMid meet">${bars}</svg>`
+    : `<div class="empty">no data in this range</div>`;
+
+  const rows = (d.per_model||[]).map(m =>
+    `<tr><td>${m.model||"—"}</td><td>${fmt(m.calls)}</td><td>${fmt(m.in_tokens)}</td><td>${fmt(m.out_tokens)}</td><td>${fmt(m.cached_tokens)}</td><td>${m.calls ? Math.round(m.latency_ms/m.calls) : 0}</td><td>${fmt(m.errors)}</td></tr>`
+  ).join("");
+  const table = rows
+    ? `<table><thead><tr><th>Model</th><th>Calls</th><th>In</th><th>Out</th><th>Cached</th><th>Avg ms</th><th>Err</th></tr></thead><tbody>${rows}</tbody></table>`
+    : `<div class="empty">no calls in this range</div>`;
+
+  document.getElementById("report").innerHTML =
+    `<div class="cards">${cards}</div>` +
+    `<section><h2>Daily in+out tokens</h2>${chart}</section>` +
+    `<section><h2>Per model</h2>${table}</section>`;
+}
+
+load();
+setInterval(load, 10000); // auto-refresh every 10s
+</script>
+</body>
+</html>

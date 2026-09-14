@@ -24,7 +24,9 @@
 - `lib/settings-patch.js` —— 文本级 YAML 补丁器：向 `~/.dsh/settings.yaml`
   写入/更新 `reasoningEfforts` 与模型列表（保留注释和顺序，不整文件回写）。
 - `chat2api/chat2api.py` —— 内置的 Open WebUI 反代（一个上游项目的快照，见
-  THIRD_PARTY_NOTICES.md）。
+  THIRD_PARTY_NOTICES.md）。DSH 侧新增的用量统计/估算已抽到同目录
+  `owui_usage.py`，内嵌 dashboard 已抽到 `dashboard.html`（运行期读取一次后
+  缓存），使本文件保持贴近上游、便于 diff。
 - `chat2api/token.json`、`usage.db`、`.chrome-profile/` —— **运行期产物**，
   绝不允许进入提交或发布物。
 
@@ -44,7 +46,7 @@
   lib/panel-i18n.js   CLIENT：面板中英字典（先于 panel.js 注入）
   lib/panel.css       CLIENT：面板样式（/panel.css 提供）
   lib/settings-patch.js   settings.yaml 文本补丁器
-  chat2api/           chat2api.py + requirements.txt（.chrome-profile 运行期才有）
+  chat2api/           chat2api.py + owui_usage.py + dashboard.html + requirements.txt（.chrome-profile 运行期才有）
 ```
 
 （`test/` 只在仓库里，不进安装副本。）
