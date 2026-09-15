@@ -87,5 +87,18 @@ if ($text -match $depPattern) {
 $null = $text | ConvertFrom-Json   # validate BEFORE writing back
 [System.IO.File]::WriteAllText($profilePkgJson, $text, [System.Text.UTF8Encoding]::new($false))
 
+# ---- build the release tarball (npm pack honours the "files" whitelist) ----
+# Kept here so "pack once" produces BOTH the installed copy and the tgz you
+# upload to GitHub Releases. Safe while the proxy runs: npm pack only reads.
+$repoRoot = Split-Path -Parent $PSScriptRoot
+Push-Location $repoRoot
+try {
+  # cmd /c swallows npm's stderr notices without PowerShell 5.1 turning them
+  # into red NativeCommandError noise.
+  cmd /c "npm pack --pack-destination . >NUL 2>&1"
+  if (-not (Test-Path ("dsh-owui-chat2api-{0}.tgz" -f $pkg.version))) { throw "npm pack produced no tgz - run 'npm pack' manually" }
+  Write-Host ("tgz -> dsh-owui-chat2api-{0}.tgz" -f $pkg.version)
+} finally { Pop-Location }
+
 Write-Host "next:"
 Write-Host "  restart DSH Desktop   (that's all - the link is already switched)"
