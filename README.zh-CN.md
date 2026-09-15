@@ -2,8 +2,10 @@
 
 # dsh-owui-chat2api
 
-把 [Open WebUI](https://github.com/open-webui/open-webui) 里的模型接进 [DSH Desktop](https://github.com/anywhere-labs/dsh-desktop)：一个把 Open WebUI 变成
-标准 OpenAI 兼容 `/v1` API 的本地反向代理，外加一个内置在 DSH 里的用量面板。
+把 [Open WebUI](https://github.com/open-webui/open-webui) 里的模型接进
+[DSH](https://github.com/anywhere-labs/dsh-desktop)（DSH Desktop 或原版 web
+界面均可）：一个把 Open WebUI 变成标准 OpenAI 兼容 `/v1` API 的本地反向代理，
+外加一个内置在 DSH 里的用量面板。
 
 它内置了 [chat2api](https://github.com/Sozbo-Tang/openwebui-chat2api)，以本地
 反向代理的方式运行，并在 DSH 的页面里注入一个控制面板：
@@ -38,18 +40,20 @@ DeepSeek Harness（或任何 OpenAI 兼容客户端）
 
 ### ⚡ 方式 A —— 一条命令（推荐）
 
-DSH Desktop 自带插件管理器，一条命令完成安装 **和** profile 注册
-（依赖声明 + bundles 自动写入，不用手改 package.json）：
+`dsh` CLI 自带插件管理器，一条命令完成安装 **和** profile 注册
+（依赖声明 + bundles 自动写入，不用手改 package.json）。按你的环境选
+profile：DSH Desktop 用 `desktop`，原版 web 界面用 `web`：
 
 ```powershell
 dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.8.0
+dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.8.0
 ```
 
 - `#v0.8.0` 锁定 Release tag，换成你想要的版本（不写则跟踪 `main` 分支）。
 - 需要本机有 `git`（pnpm 走 git 拉取）；网络需要代理时先设
   `http_proxy` / `https_proxy` 再执行。
-- 装完重启 DSH Desktop 即可。以后升级：
-  `dsh plugin --profile desktop update dsh-owui-chat2api`。
+- 装完重启 DSH 即可。以后升级（`--profile` 与安装时一致）：
+  `dsh plugin --profile <desktop|web> update dsh-owui-chat2api`。
 
 ### 📦 方式 B —— 从 Release 的 tgz 手动装（无需 git）
 
@@ -63,7 +67,8 @@ dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.8.0
    Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.8.0"
    ```
 
-3. 在 `%USERPROFILE%\.dsh\profiles\desktop\package.json` 里注册：
+3. 在 `%USERPROFILE%\.dsh\profiles\<desktop|web>\package.json` 里注册
+   （DSH Desktop 用 `desktop`，原版 web 界面用 `web`）：
 
    ```jsonc
    "dependencies": {
@@ -83,19 +88,20 @@ dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.8.0
 
 步骤：
 1. 执行：dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.8.0
-   （需要本机有 git。如果 dsh plugin 不可用，改用手动方式：从仓库 Releases 的
-   Assets 下载 dsh-owui-chat2api-<版本>.tgz，解压得到 package/ 文件夹，移动并
-   改名为 %USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-<版本>；然后在
-   %USERPROFILE%\.dsh\profiles\desktop\package.json 的 dependencies 里加
+   （用原版 web 界面就把 --profile desktop 换成 --profile web。需要本机有 git。
+   如果 dsh plugin 不可用，改用手动方式：从仓库 Releases 的 Assets 下载
+   dsh-owui-chat2api-<版本>.tgz，解压得到 package/ 文件夹，移动并改名为
+   %USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-<版本>；然后在
+   %USERPROFILE%\.dsh\profiles\<desktop|web>\package.json 的 dependencies 里加
    "dsh-owui-chat2api": "link:<该目录的绝对路径>",并把 "dsh-owui-chat2api"
    加进 dsh.profile.bundles 数组）
-2. 重启 DSH Desktop。
+2. 重启 DSH。
 3. 验证：DSH 页面右上角出现 OWUI 圆标；点开面板，Status 区能显示状态即成功。
 ```
 
 ## 快速开始 🚀
 
-1. 重启 DSH Desktop（任一方式装完后），右上角出现 **OWUI** 圆标。
+1. 重启 DSH（任一方式装完后），右上角出现 **OWUI** 圆标。
 2. 打开面板，把 **Open WebUI 地址**改成你自己的（默认是占位符）。
 3. 点 **Start**。第一次运行会弹出浏览器窗口，登录一次你的 Open WebUI，
    之后自动复用。

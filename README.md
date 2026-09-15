@@ -3,8 +3,8 @@
 # dsh-owui-chat2api
 
 An adapter that exposes the models in your [Open WebUI](https://github.com/open-webui/open-webui) as a standard
-OpenAI-compatible `/v1` API for [DSH Desktop](https://github.com/anywhere-labs/dsh-desktop), plus a usage
-dashboard that lives inside DSH.
+OpenAI-compatible `/v1` API for [DSH](https://github.com/anywhere-labs/dsh-desktop)
+(DSH Desktop or the stock web UI), plus a usage dashboard that lives inside DSH.
 
 It bundles [chat2api](https://github.com/Sozbo-Tang/openwebui-chat2api), runs it
 as a local reverse proxy, and adds a control panel to the DSH web shell:
@@ -42,19 +42,21 @@ lets your DSH assistant do the whole thing.
 
 ### ⚡ Option A — one command (recommended)
 
-DSH Desktop ships a plugin manager. One command installs the plugin **and**
-registers it in your profile (dependencies + bundles):
+The `dsh` CLI ships a plugin manager. One command installs the plugin **and**
+registers it in your profile (dependencies + bundles). Pick the profile that
+matches your setup — `desktop` for DSH Desktop, `web` for the stock web UI:
 
 ```powershell
 dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.8.0
+dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.8.0
 ```
 
 - `#v0.8.0` pins the release tag — use the version you want (omit it to
   follow `main`).
 - Requires `git` on PATH (pnpm clones the repo). Behind a proxy? Export
   `http_proxy` / `https_proxy` first.
-- Restart DSH Desktop when it finishes. Later updates:
-  `dsh plugin --profile desktop update dsh-owui-chat2api`.
+- Restart DSH when it finishes. Later updates (same `--profile` as install):
+  `dsh plugin --profile <desktop|web> update dsh-owui-chat2api`.
 
 ### 📦 Option B — from the release tarball (no git needed)
 
@@ -70,7 +72,8 @@ dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.8.0
    Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.8.0"
    ```
 
-3. Register it in `%USERPROFILE%\.dsh\profiles\desktop\package.json`:
+3. Register it in `%USERPROFILE%\.dsh\profiles\<desktop|web>\package.json`
+   (`desktop` for DSH Desktop, `web` for the stock web UI):
 
    ```jsonc
    "dependencies": {
@@ -90,19 +93,20 @@ Paste this to your DSH assistant and it will do the rest:
 
 步骤:
 1. 执行:dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.8.0
-   (需要本机有 git。如果 dsh plugin 不可用,改用手动方式:从仓库 Releases 的
-   Assets 下载 dsh-owui-chat2api-<版本>.tgz,解压得到 package/ 文件夹,移动并
-   改名为 %USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-<版本>;然后在
-   %USERPROFILE%\.dsh\profiles\desktop\package.json 的 dependencies 里加
+   (用原版 web 界面就把 --profile desktop 换成 --profile web。需要本机有 git。
+   如果 dsh plugin 不可用,改用手动方式:从仓库 Releases 的 Assets 下载
+   dsh-owui-chat2api-<版本>.tgz,解压得到 package/ 文件夹,移动并改名为
+   %USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-<版本>;然后在
+   %USERPROFILE%\.dsh\profiles\<desktop|web>\package.json 的 dependencies 里加
    "dsh-owui-chat2api": "link:<该目录的绝对路径>",并把 "dsh-owui-chat2api"
    加进 dsh.profile.bundles 数组)
-2. 重启 DSH Desktop。
+2. 重启 DSH。
 3. 验证:DSH 页面右上角出现 OWUI 圆标;点开面板,Status 区能显示状态即成功。
 ```
 
 ## Quick start 🚀
 
-1. Restart DSH Desktop (after any install option above). The **OWUI** pill
+1. Restart DSH (after any install option above). The **OWUI** pill
    appears in the top-right corner.
 2. Open the panel and set your Open WebUI URL (the default is a placeholder).
 3. Click **Start**. The first run opens a browser window for a one-time
