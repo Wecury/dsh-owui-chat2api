@@ -27,9 +27,13 @@ DeepSeek Harness (or any OpenAI-compatible client)
 - ▶️ Start / stop the proxy from the panel
 - 🩺 Environment check: is Python available, are the dependencies installed?
 - ⚙️ Configure your Open WebUI URL, host and port
-- 📊 Usage dashboard: today / yesterday / month / total, ranked per model
+- 📊 Usage dashboard: today / yesterday / month / total, ranked per model with
+  colorful share bars — plus a manual **price table** (per 1M tokens, cached
+  tokens priced separately) that turns the stats into a cost estimate
 - 🧠 One-click model and reasoning-level sync (see [Reasoning effort](#reasoning-effort-))
 - 📜 Process log with error highlighting, follow mode and copy
+- 🎨 Color-coded sections with inline Tabler icons that follow the DSH theme
+  (dark / light), zero external requests
 
 ## Install 📦
 

@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node tests (settings-patch + prices)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+
+      - name: Python syntax check (proxy + usage module)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m py_compile chat2api/chat2api.py chat2api/owui_usage.py
