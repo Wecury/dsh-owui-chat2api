@@ -23,6 +23,11 @@ param(
 )
 $ErrorActionPreference = "Stop"
 
+# Build the client half FIRST: the install copy below mirrors it, and the
+# tgz at the end packs it. Doing this any later would ship a stale client.js.
+node (Join-Path $PSScriptRoot "build-client.mjs")
+if ($LASTEXITCODE -ne 0) { throw "client bundle build failed" }
+
 # repo root = parent of scripts/
 $repo = Resolve-Path (Join-Path $PSScriptRoot "..")
 $pkg  = Get-Content (Join-Path $repo "package.json") -Raw | ConvertFrom-Json
@@ -87,9 +92,8 @@ if ($text -match $depPattern) {
 $null = $text | ConvertFrom-Json   # validate BEFORE writing back
 [System.IO.File]::WriteAllText($profilePkgJson, $text, [System.Text.UTF8Encoding]::new($false))
 
-# ---- build the release tarball (npm pack honours the "files" whitelist) ----
-# Kept here so "pack once" produces BOTH the installed copy and the tgz you
-# upload to GitHub Releases. Safe while the proxy runs: npm pack only reads.
+# ---- release tarball (npm pack honours the "files" whitelist; client.js was
+# built at the top of this script, before the install copy mirrored it) ----
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $repoRoot
 try {

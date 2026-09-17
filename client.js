@@ -1,0 +1,1008 @@
+window.__ModuleLoader__.load({id:"dsh-owui-chat2api",factory:function(require){var module={exports:{}};var exports=module.exports;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __esm = (fn, res, err) => function __init() {
+  if (err) throw err[0];
+  try {
+    return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+  } catch (e) {
+    throw err = [e], e;
+  }
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// lib/panel.js
+var panel_exports = {};
+__export(panel_exports, {
+  createPanelInstance: () => createPanelInstance
+});
+function createPanelInstance(opts) {
+  var mode = opts && opts.mode === "embedded" ? "embedded" : "overlay";
+  var mountEl = opts && opts.mount || null;
+  var ROUTE2 = "/dsh-owui-chat2api";
+  var LS_KEY = "dsh-owui-lang";
+  function dicts() {
+    return window.__dshOwuiI18n || {};
+  }
+  function t(k) {
+    var I18N = dicts().dict || { en: {}, zh: {} };
+    var d = I18N[lang] || I18N.en;
+    return d[k] != null ? d[k] : I18N.en[k] != null ? I18N.en[k] : k;
+  }
+  function detectLang() {
+    try {
+      var s = localStorage.getItem(LS_KEY);
+      if (s === "en" || s === "zh") return s;
+    } catch (e) {
+    }
+    return /^zh/i.test(navigator.language || "") ? "zh" : "en";
+  }
+  var lang = detectLang();
+  function msgs() {
+    return dicts().msg || { en: {}, zh: {} };
+  }
+  function normMsg(s) {
+    return String(s).replace(/\u2026/g, "...");
+  }
+  function trMsg(s) {
+    if (typeof s !== "string" || !s) return s;
+    var MSG = msgs();
+    var d = (MSG[lang] || MSG.en)[normMsg(s)];
+    return d !== void 0 ? d : s;
+  }
+  function setLang(l) {
+    lang = l;
+    try {
+      localStorage.setItem(LS_KEY, l);
+    } catch (e) {
+    }
+    renderAll();
+  }
+  var btn = null;
+  var dotEl = null;
+  var panel = document.createElement("div");
+  if (mode === "overlay") panel.id = "dsh-owui-panel";
+  panel.className = "ow-panel";
+  panel.innerHTML = '<div class="ow-hd"><div class="ow-hd-t"><div class="ow-hd-title"></div><div class="ow-hd-sub"></div></div><div class="ow-hd-actions"><span class="ow-lang" role="button" tabindex="0"></span><span class="ow-close" role="button" tabindex="0">&times;</span></div></div><div class="ow-notice" style="display:none"></div><div class="ow-body"><section class="ow-sec" data-sec="status"></section><section class="ow-sec" data-sec="diag"></section><section class="ow-sec" data-sec="usage"></section><section class="ow-sec" data-sec="config"></section><section class="ow-sec" data-sec="log"></section></div>';
+  var tracked = [];
+  function track(el, type, fn) {
+    el.addEventListener(type, fn);
+    tracked.push([el, type, fn]);
+    return fn;
+  }
+  if (mode === "overlay") {
+    btn = document.createElement("button");
+    btn.id = "dsh-owui-btn";
+    btn.className = "ow-pill";
+    btn.type = "button";
+    btn.innerHTML = '<span class="ow-pill-dot"></span><span class="ow-pill-lbl">OWUI</span>';
+    btn.title = t("open");
+    document.body.appendChild(btn);
+    dotEl = btn.querySelector(".ow-pill-dot");
+    document.body.appendChild(panel);
+  } else {
+    panel.classList.add("open", "ow-embedded");
+    var closeEl0 = panel.querySelector(".ow-close");
+    if (closeEl0) closeEl0.remove();
+    (mountEl || document.body).appendChild(panel);
+  }
+  function findShell() {
+    try {
+      var el = document.querySelector('[class*="scrollBody"]');
+      if (el && el.appendChild) return el;
+    } catch (e) {
+    }
+    if (!findShell._warned) {
+      findShell._warned = true;
+      console.warn("[dsh-owui-chat2api] DSH scroll container not found; overlay anchored to body");
+    }
+    return document.body;
+  }
+  function anchorOverlay() {
+    try {
+      var s = findShell();
+      var r = s.getBoundingClientRect();
+      if (!r || !r.width || !r.height) return false;
+      var gap = 28;
+      var rightAir = Math.round(window.innerWidth - r.right + gap);
+      btn.style.right = rightAir + "px";
+      btn.style.top = String(Math.round(r.top + 10)) + "px";
+      btn.style.left = "";
+      panel.style.right = rightAir + "px";
+      panel.style.top = String(Math.round(r.top + 56)) + "px";
+      panel.style.left = "";
+      watchShell(s);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  if (mode === "overlay") track(window, "resize", anchorOverlay);
+  var shellObserver = null;
+  var observedShell = null;
+  function watchShell(s) {
+    if (observedShell === s) return;
+    observedShell = s;
+    if (shellObserver) {
+      try {
+        shellObserver.disconnect();
+      } catch (e) {
+      }
+      shellObserver = null;
+    }
+    if (typeof ResizeObserver === "undefined" || s === document.body) return;
+    try {
+      shellObserver = new ResizeObserver(function() {
+        if (!document.hidden) anchorOverlay();
+      });
+      shellObserver.observe(s);
+    } catch (e) {
+      shellObserver = null;
+    }
+  }
+  var secStatus = panel.querySelector('[data-sec="status"]');
+  var secDiag = panel.querySelector('[data-sec="diag"]');
+  var secConfig = panel.querySelector('[data-sec="config"]');
+  var secUsage = panel.querySelector('[data-sec="usage"]');
+  var secLog = panel.querySelector('[data-sec="log"]');
+  var secNotice = panel.querySelector(".ow-notice");
+  if (mode === "overlay") {
+    track(btn, "click", function() {
+      var willOpen = !panel.classList.contains("open");
+      panel.classList.toggle("open");
+      if (willOpen) poll();
+      anchorOverlay();
+    });
+    track(btn, "keydown", function(e) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        btn.click();
+      }
+    });
+    track(document, "pointerdown", function(e) {
+      if (!panel.classList.contains("open")) return;
+      if (panel.contains(e.target) || btn.contains(e.target)) return;
+      panel.classList.remove("open");
+    });
+  }
+  var closeEl = panel.querySelector(".ow-close");
+  if (closeEl) track(closeEl, "click", function() {
+    panel.classList.remove("open");
+  });
+  var langEl = panel.querySelector(".ow-lang");
+  if (langEl) track(langEl, "click", function() {
+    setLang(lang === "zh" ? "en" : "zh");
+  });
+  [[closeEl, function() {
+    panel.classList.remove("open");
+  }], [langEl, function() {
+    setLang(lang === "zh" ? "en" : "zh");
+  }]].forEach(function(pair) {
+    if (!pair[0]) return;
+    track(pair[0], "keydown", function(e) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        pair[1]();
+      }
+    });
+  });
+  var snap = null;
+  var form = null;
+  var busy = false;
+  var banner = "";
+  var bannerType = "";
+  var bannerAt = 0;
+  var logOpen = (function() {
+    try {
+      return localStorage.getItem("dsh-owui-logopen") === "1";
+    } catch (e) {
+      return false;
+    }
+  })();
+  var logFollow = (function() {
+    try {
+      if (localStorage.getItem("dsh-owui-logfollow") !== null) return localStorage.getItem("dsh-owui-logfollow") === "1";
+    } catch (e) {
+    }
+    return true;
+  })();
+  var range = "today";
+  var usage = null;
+  var usageOffline = false;
+  var loadSeq = 0;
+  var seenLoginAt = 0;
+  var seenScanAt = 0;
+  function setBanner(m, type) {
+    banner = trMsg(m);
+    bannerType = type || "";
+    bannerAt = Date.now();
+  }
+  var NOTE_IC = { ok: "✓", warn: "⚠", err: "✕", info: "ℹ" };
+  function noteType(t2) {
+    return t2 === "ok" || t2 === "warn" || t2 === "err" || t2 === "info" ? t2 : "info";
+  }
+  function noteHtml(m, type) {
+    var ty = noteType(type);
+    return '<div class="ow-note ow-note-' + ty + '"><span class="ow-note-ic">' + NOTE_IC[ty] + '</span><span class="ow-note-tx">' + esc(String(m == null ? "" : m)) + "</span></div>";
+  }
+  function noteOf(m) {
+    if (!m) return "info";
+    if (/fail|error|crash|unreach|refus|denied|could not|not found|invalid|missing|spawn|timed out/i.test(m)) return "err";
+    if (/exited|stopped|already|not set|not running|skip|cached|deprecat|attention|background|starting|login|warn/i.test(m)) return "warn";
+    return "ok";
+  }
+  function api(p, opts2) {
+    return fetch(ROUTE2 + "/api/" + p, opts2).then(function(r) {
+      return r.text().then(function(txt) {
+        if (!txt) return { ok: false, message: "API " + p + " answered HTTP " + r.status + " with an empty body" };
+        try {
+          return JSON.parse(txt);
+        } catch (e) {
+          return { ok: false, message: "API " + p + " returned non-JSON (HTTP " + r.status + "): " + txt.slice(0, 120) };
+        }
+      });
+    });
+  }
+  function safeRefresh() {
+    try {
+      refreshDynamic();
+    } catch (e) {
+    }
+  }
+  function poll() {
+    api("status").then(function(r) {
+      snap = r || snap;
+      if (form === null && r && r.config) {
+        form = Object.assign({}, r.config);
+        renderConfigRegion();
+      }
+      var lg = r && r.login;
+      if (lg && lg.resultAt && lg.resultAt !== seenLoginAt) {
+        seenLoginAt = lg.resultAt;
+        if (Date.now() - lg.resultAt < 6e5 && !busy) {
+          setBanner(lg.result === "ok" ? t("loginOk") : t("loginFail"), lg.result === "ok" ? "ok" : "warn");
+        }
+      }
+      var sc = r && r.effortScan;
+      if (sc && sc.resultAt && sc.resultAt !== seenScanAt) {
+        seenScanAt = sc.resultAt;
+        if (Date.now() - sc.resultAt < 6e5 && !busy) {
+          if (sc.result && sc.result.ok === false) setBanner(trMsg(sc.result.message) || t("effortScanDone"), "err");
+          else if (sc.result) announceScanResult(sc.result);
+        }
+      }
+      if (sc && sc.running && !banner && !busy) setBanner(t("scanRunning"), "info");
+      if (banner && !busy && Date.now() - bannerAt > 6e3) {
+        banner = "";
+        bannerType = "";
+      }
+      safeRefresh();
+    }).catch(function(e) {
+    });
+  }
+  function loadUsage() {
+    var my = ++loadSeq;
+    api("usage?range=" + encodeURIComponent(range)).then(function(r) {
+      if (my !== loadSeq) return;
+      if (!r || r.ok === false) {
+        usageOffline = true;
+        refreshUsage();
+        return;
+      }
+      usage = r;
+      usageOffline = false;
+      if (!prices) loadPricesData();
+      refreshUsage();
+    }).catch(function() {
+      if (my !== loadSeq) return;
+      usageOffline = true;
+      refreshUsage();
+    });
+  }
+  var prices = null;
+  function loadPricesData() {
+    api("prices").then(function(r) {
+      prices = r && r.prices ? { currency: r.currency || "¥", prices: r.prices } : { currency: "¥", prices: {} };
+      refreshUsage();
+    }).catch(function() {
+      prices = { currency: "¥", prices: {} };
+    });
+  }
+  function savePricesAction() {
+    var cur = secUsage.querySelector('[data-price-currency="1"]');
+    var base = prices && prices.prices || {};
+    var merged = {};
+    for (var k in base) merged[k] = Object.assign({}, base[k]);
+    var ok = true;
+    secUsage.querySelectorAll("input[data-pm]").forEach(function(el) {
+      var m = el.getAttribute("data-pm");
+      var f = el.getAttribute("data-pf");
+      var v = String(el.value || "").trim();
+      if (v === "") {
+        if (merged[m]) delete merged[m][f];
+        return;
+      }
+      var n = Number(v);
+      if (!isFinite(n) || n < 0) {
+        ok = false;
+        return;
+      }
+      merged[m] = merged[m] || {};
+      merged[m][f] = n;
+    });
+    if (!ok) {
+      setBanner(trMsg("prices must be non-negative numbers"), "err");
+      return;
+    }
+    withBusy(api("prices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ currency: cur ? cur.value.trim() : "", prices: merged }) }).then(function(r) {
+      if (r && r.prices) prices = { currency: r.currency || "¥", prices: r.prices };
+      setBanner(t("saved"), "ok");
+      loadUsage();
+    }).catch(function(e) {
+      setBanner(String(e && e.message || e), "err");
+    }));
+  }
+  function withBusy(fn, timeoutMs) {
+    busy = true;
+    banner = "";
+    safeRefresh();
+    var cleared = false;
+    var guard = setTimeout(function() {
+      if (!cleared) {
+        cleared = true;
+        busy = false;
+        safeRefresh();
+      }
+    }, timeoutMs || 8e3);
+    Promise.resolve().then(fn).then(function() {
+      safeRefresh();
+    }).finally(function() {
+      clearTimeout(guard);
+      if (cleared) return;
+      cleared = true;
+      busy = false;
+      safeRefresh();
+    });
+  }
+  function doSave() {
+    withBusy(api("config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form || {}) }).then(function(r) {
+      snap = r || snap;
+      var bad = r && r.startResult && !r.startResult.ok;
+      if (r && r.config) {
+        form = Object.assign({}, r.config);
+        renderConfigRegion();
+      }
+      setBanner(bad ? r.startResult.message || t("save") : t("saved"), bad ? "err" : "ok");
+      if (!bad) loadUsage();
+    }).catch(function(e) {
+      setBanner(String(e && e.message || e), "err");
+    }));
+  }
+  function doEffortScan(force) {
+    withBusy(function() {
+      setBanner(t("scanStarted"), "info");
+      return api(force ? "effort-scan-force" : "effort-scan", { method: "POST" }).then(function(r) {
+        if (!r || !r.ok) setBanner(trMsg(r && r.message) || t("effortScan") + "?", "err");
+      }).catch(function(e) {
+        setBanner(String(e && e.message || e), "err");
+      });
+    });
+  }
+  function announceScanResult(res) {
+    var bits = [];
+    if (res.providerCreated) bits.push(t("effortScanProviderCreated") + " " + (res.providerName || ""));
+    if (res.modelsAdded && res.modelsAdded.length) bits.push(t("effortScanModelsAdded") + " " + res.modelsAdded.join(", "));
+    if (res.modelsAlready && res.modelsAlready.length) bits.push(t("effortScanModelsAlready") + " " + res.modelsAlready.join(", "));
+    if (res.added && res.added.length) bits.push(t("effortScanPatched") + " " + res.added.join(", "));
+    if (res.already && res.already.length) bits.push(t("effortScanAlready") + " " + res.already.join(", "));
+    if (res.skipped && res.skipped.length) bits.push(t("effortScanSkipped") + " " + res.skipped.join(", "));
+    var done = bits.length ? bits.join("\n") + (res.changed ? t("effortScanRestart") : "") : t("effortScanDone");
+    setBanner(done, res.verify ? "warn" : res.changed ? "ok" : "info");
+  }
+  function doStart() {
+    withBusy(api("start", { method: "POST" }).then(function(r) {
+      if (!r || r.ok === false) {
+        setBanner(r && r.message || t("start") + "?", noteOf(r && r.message));
+        return;
+      }
+      if (r.async && r.message) setBanner(r.message, "info");
+      else poll();
+      setTimeout(poll, 400);
+    }).catch(function(e) {
+      setBanner(String(e && e.message || e), "err");
+    }));
+  }
+  function doStop() {
+    withBusy(api("stop", { method: "POST" }).then(function(r) {
+      if (!r || r.ok === false) {
+        setBanner(r && r.message || t("stop") + "?", noteOf(r && r.message));
+        return;
+      }
+      poll();
+    }).catch(function(e) {
+      setBanner(String(e && e.message || e), "err");
+    }));
+  }
+  function doLogin() {
+    withBusy(api("login", { method: "POST" }).then(function(r) {
+      setBanner(r && r.message || t("login"), r && !r.ok ? noteOf(r.message) : "info");
+      if (!r || !r.ok) return;
+      setTimeout(poll, 1500);
+    }).catch(function(e) {
+      setBanner(String(e && e.message || e), "err");
+    }));
+  }
+  function renderNotice() {
+    if (!secNotice) return;
+    if (!banner) {
+      secNotice.style.display = "none";
+      secNotice.innerHTML = "";
+      return;
+    }
+    var ty = bannerType || noteOf(banner);
+    secNotice.innerHTML = noteHtml(banner, ty);
+    secNotice.style.display = "";
+  }
+  function stateMeta() {
+    var st = snap && snap.runtimeStatus || null;
+    var s = st && st.state || "unknown";
+    if (s === "running") return { key: "running", cls: "ok", color: "var(--dsw-alias-state-success-primary)" };
+    if (s === "exited") return { key: "exited", cls: "warn", color: "var(--dsw-alias-state-warn-primary)" };
+    if (s === "crashed") return { key: "crashed", cls: "err", color: "var(--dsw-alias-state-error-primary)" };
+    if (s === "stopped") return { key: "stopped", cls: "dim", color: "var(--dsw-alias-label-secondary)" };
+    return { key: "unknown", cls: "dim", color: "var(--dsw-alias-label-secondary)" };
+  }
+  function updatePill(m) {
+    if (!dotEl) return;
+    try {
+      dotEl.style.setProperty("--ow-pill", m.color);
+    } catch (e) {
+    }
+  }
+  function renderHeader() {
+    panel.querySelector(".ow-hd-title").textContent = t("title");
+    panel.querySelector(".ow-hd-sub").textContent = t("subtitle");
+    panel.querySelector(".ow-lang").textContent = lang === "zh" ? "EN" : "中文";
+    if (btn) btn.title = t("open");
+  }
+  function renderStatusRegion() {
+    var st = snap && snap.runtimeStatus || null;
+    var m = stateMeta();
+    updatePill(m);
+    var meta = [];
+    if (st && st.startedAt) meta.push(t("started") + " " + new Date(st.startedAt).toLocaleTimeString());
+    if (st && (st.exitCode !== null || st.signal !== null)) meta.push(t("exitInfo").replace("{0}", String(st.exitCode)).replace("{1}", String(st.signal)));
+    if (st && st.message) meta.push(esc(trMsg(st.message)));
+    var isRunning = !!(st && st.state === "running");
+    var html = secHead("status", t("status")) + '<div class="ow-card ow-status"><div class="ow-flex ow-gap ow-wrap"><div class="ow-state" style="--ow-state:' + m.color + '"><span class="ow-state-dot"></span><span class="ow-state-lbl ' + m.cls + '">' + esc(t(m.key)) + '</span></div><div class="ow-status-actions"><button class="ow-btn ghost" data-a="login"' + (busy ? " disabled" : "") + ">" + ic("key") + esc(t("login")) + '</button><button class="ow-btn" data-a="start"' + (busy || isRunning ? " disabled" : "") + ">" + ic("player-play") + esc(t("start")) + '</button><button class="ow-btn danger" data-a="stop"' + (busy || !isRunning ? " disabled" : "") + ">" + ic("player-stop") + esc(t("stop")) + "</button></div></div>" + (meta.length ? '<div class="ow-meta">' + meta.map(esc).join(" · ") + "</div>" : "") + "</div>";
+    secStatus.innerHTML = html;
+    secStatus.querySelectorAll("button[data-a]").forEach(function(b) {
+      b.addEventListener("click", function() {
+        var a = b.getAttribute("data-a");
+        if (a === "start") doStart();
+        else if (a === "stop") doStop();
+        else if (a === "login") doLogin();
+      });
+    });
+  }
+  function renderDiagRegion() {
+    var d = snap && snap.diagnostics || null;
+    if (!d || !d.python) {
+      secDiag.innerHTML = "";
+      return;
+    }
+    var ok = d.python === "ok" && d.deps === "ok";
+    var realPath = d.pythonPath && !/^(python|python3|py)(\.exe)?$/i.test(d.pythonPath);
+    var msgNote = !ok && d.message ? noteHtml(trMsg(d.message), d.python === "missing" ? "err" : "warn") : "";
+    var html = '<div class="ow-card ow-diag"><span class="ow-badge ' + (ok ? "ok" : "warn") + '">' + (ok ? t("ready") : t("attention")) + '</span><div class="ow-diag-list"><div class="ow-diag-row"><span class="ow-k">' + t("python") + '</span><b class="' + (d.python === "ok" ? "ok" : "err") + '">' + esc(String(d.python)) + '</b></div><div class="ow-diag-row"><span class="ow-k">' + t("deps") + '</span><b class="' + (d.deps === "ok" ? "ok" : "err") + '">' + esc(String(d.deps)) + "</b></div></div>" + (realPath ? '<div class="ow-diag-path">' + esc(d.pythonPath) + "</div>" : "") + (msgNote ? '<div class="ow-diag-note">' + msgNote + "</div>" : "") + "</div>";
+    secDiag.innerHTML = html;
+  }
+  function fieldHtml(k, label, hint, placeholder) {
+    return '<div class="ow-field" data-f="' + k + '"><label>' + esc(label) + '</label><input type="text" value="' + esc(form && form[k] !== void 0 ? String(form[k]) : "") + '" placeholder="' + esc(placeholder || "") + '">' + (hint ? '<div class="ow-hint">' + hint + "</div>" : "") + "</div>";
+  }
+  function renderConfigRegion() {
+    var html = secHead("config", t("config")) + '<div class="ow-card ow-config">' + fieldHtml("chat2apiDir", t("dir"), t("dirHint")) + fieldHtml("baseUrl", t("baseUrl"), "") + '<div class="ow-grid2">' + fieldHtml("host", t("host"), "", "127.0.0.1") + fieldHtml("port", t("port"), "", "8000") + '</div><label class="ow-switch-row ow-flex ow-gap"><input type="checkbox" data-cb="autoStart"' + (form && form.autoStart ? " checked" : "") + '><span class="ow-switch"></span><span>' + esc(t("autoStart")) + '</span></label><div class="ow-scan-row"><div class="ow-flex ow-gap ow-wrap"><button class="ow-btn" data-effort-scan="1" type="button">' + ic("refresh") + esc(t("effortScan")) + '</button><button class="ow-btn ow-btn-ghost" data-effort-force="1" type="button" title="' + esc(t("effortRescanHint")) + '">' + ic("bolt") + esc(t("effortRescan")) + '</button></div><div class="ow-hint">' + esc(t("effortScanHint")) + '</div></div><div class="ow-config-foot ow-flex ow-end"><button class="ow-btn" data-save="1">' + ic("device-floppy") + esc(t("save")) + "</button></div></div>";
+    secConfig.innerHTML = html;
+    secConfig.querySelectorAll("input[type=text]").forEach(function(el) {
+      el.addEventListener("input", function() {
+        var k = el.closest(".ow-field").getAttribute("data-f");
+        setField(k, el.value);
+      });
+    });
+    var cb = secConfig.querySelector('input[data-cb="autoStart"]');
+    if (cb) cb.addEventListener("change", function() {
+      setField("autoStart", cb.checked);
+    });
+    var sv = secConfig.querySelector('[data-save="1"]');
+    if (sv) sv.addEventListener("click", doSave);
+    var es = secConfig.querySelector('[data-effort-scan="1"]');
+    if (es) es.addEventListener("click", function() {
+      doEffortScan(false);
+    });
+    var esf = secConfig.querySelector('[data-effort-force="1"]');
+    if (esf) esf.addEventListener("click", function() {
+      doEffortScan(true);
+    });
+  }
+  function setField(k, v) {
+    form = Object.assign({}, form || {}, { [k]: v });
+  }
+  function renderUsageRegion() {
+    var ae = document.activeElement;
+    if (ae && secUsage.contains(ae) && ae.tagName === "INPUT") return;
+    var cfg = snap && snap.config || form || null;
+    var cfgReady = Boolean(cfg && String(cfg.chat2apiDir || "").trim());
+    var url = "http://" + (cfg && cfg.host || "127.0.0.1") + ":" + (cfg && cfg.port || 8e3) + "/v1/usage?range=" + range;
+    var body = "";
+    if (!cfgReady) {
+      body = '<p class="ow-muted">' + esc(t("saveFirst")) + "</p>";
+    } else if (usageOffline) {
+      body = '<p class="ow-warn">' + esc(t("unreachable").replace("{url}", url)) + "</p>";
+    } else if (!usage) {
+      body = '<p class="ow-muted">' + esc(t("loading")) + "</p>";
+    } else {
+      var s = usage.summary || { calls: 0, in_tokens: 0, out_tokens: 0, cached_tokens: 0, latency_ms: 0, errors: 0 };
+      var stats = [
+        [t("calls"), fmt(s.calls), STAT_COLORS.calls],
+        [t("inTok"), fmt(s.in_tokens), STAT_COLORS.inTok],
+        [t("outTok"), fmt(s.out_tokens), STAT_COLORS.outTok],
+        [t("cached"), fmt(s.cached_tokens), STAT_COLORS.cached],
+        [t("latency"), s.calls ? fmt(Math.round(s.latency_ms / s.calls)) + " ms" : "-", STAT_COLORS.latency],
+        [t("errs"), fmt(s.errors), s.errors ? STAT_COLORS.errs : null]
+      ];
+      if (usage.priced && typeof s.cost === "number") {
+        stats.push([t("cost"), (usage.currency || "¥") + " " + fmtMoney(s.cost), STAT_COLORS.cost]);
+      }
+      body = '<div class="ow-stats">';
+      for (var i = 0; i < stats.length; i++) {
+        var sc = stats[i][2] ? ' style="--ow-sc:' + stats[i][2] + '"' : "";
+        body += '<div class="ow-stat"' + sc + '><div class="v">' + esc(stats[i][1]) + '</div><div class="l">' + esc(stats[i][0]) + "</div></div>";
+      }
+      body += "</div>";
+      var rows = usage.per_model || [];
+      if (rows.length) {
+        var list = rows.map(function(m) {
+          return { model: m.model, calls: m.calls || 0, in: m.in_tokens || 0, out: m.out_tokens || 0, cached: m.cached_tokens || 0, lat: m.latency_ms || 0, err: m.errors || 0, cost: typeof m.cost === "number" ? m.cost : null };
+        });
+        list.sort(function(a, b) {
+          return b.in + b.out - (a.in + a.out);
+        });
+        var total = 0;
+        for (var gi = 0; gi < list.length; gi++) total += list[gi].in + list[gi].out;
+        var shown = list.slice(0, 6);
+        var restN = list.length - shown.length;
+        if (restN > 0) {
+          var o = { model: t("others").replace("{0}", restN), calls: 0, in: 0, out: 0, cached: 0, lat: 0, err: 0, cost: 0, other: true };
+          for (var gj = 0; gj < restN; gj++) {
+            var x = list[shown.length + gj];
+            o.calls += x.calls;
+            o.in += x.in;
+            o.out += x.out;
+            o.cached += x.cached;
+            o.lat += x.lat;
+            o.err += x.err;
+            if (x.cost != null) o.cost += x.cost;
+          }
+          shown.push(o);
+        }
+        body += '<div class="ow-mbar-list">';
+        for (var gk = 0; gk < shown.length; gk++) {
+          var mm = shown[gk];
+          var tk = mm.in + mm.out;
+          var pct = total ? tk / total * 100 : 0;
+          var avgs = mm.calls ? fmt(Math.round(mm.lat / mm.calls)) + " ms" : "-";
+          var title = (mm.model || "") + " · " + fmtC(mm.calls) + " " + t("calls") + " · " + t("inTok") + " " + fmtC(mm.in) + " · " + t("outTok") + " " + fmtC(mm.out) + " · " + t("cached") + " " + fmtC(mm.cached) + " · " + t("latency") + " " + avgs + " · " + t("errs") + " " + fmtC(mm.err);
+          if (usage.priced && mm.model && mm.cost != null && mm.model.indexOf(t("others").split("{0}")[0]) !== 0) {
+            title += " · " + t("cost") + " " + (usage.currency || "¥") + fmtMoney(mm.cost);
+          }
+          var barVar = mm.other ? "" : ' style="--ow-bar:' + BAR_COLORS[gk % BAR_COLORS.length] + '"';
+          body += '<div class="ow-mbar"' + barVar + ' title="' + esc(title) + '"><div class="ow-mbar-top"><span class="ow-mbar-nm">' + esc(mm.model || "-") + '</span><span class="ow-mbar-tk">' + fmtC(tk) + '</span><span class="ow-mbar-pct">' + Math.round(pct) + '%</span></div><div class="ow-mbar-track"><div class="ow-mbar-fill" style="width:' + Math.max(0.5, Math.min(100, pct)) + '%"></div></div></div>';
+        }
+        body += "</div>";
+        var pr = prices || { currency: "¥", prices: {} };
+        var pmap = pr.prices || {};
+        var pRows = "";
+        for (var pj = 0; pj < list.length; pj++) {
+          var pm = list[pj].model;
+          var pv = pmap[pm] || {};
+          pRows += '<div class="ow-price-row"><span class="ow-price-nm" title="' + esc(pm) + '">' + esc(pm) + '</span><input class="ow-price-in" type="number" min="0" step="any" inputmode="decimal" data-pm="' + esc(pm) + '" data-pf="input" value="' + (pv.input === void 0 || pv.input === null ? "" : String(pv.input)) + '"><input class="ow-price-in" type="number" min="0" step="any" inputmode="decimal" data-pm="' + esc(pm) + '" data-pf="cached" value="' + (pv.cached === void 0 || pv.cached === null ? "" : String(pv.cached)) + '"><input class="ow-price-in" type="number" min="0" step="any" inputmode="decimal" data-pm="' + esc(pm) + '" data-pf="output" value="' + (pv.output === void 0 || pv.output === null ? "" : String(pv.output)) + '"></div>';
+        }
+        var unpricedN = (usage.unpriced || []).length;
+        body += '<div class="ow-price"><div class="ow-price-h"><span>' + esc(t("pricing")) + '</span><input class="ow-price-cur" type="text" maxlength="8" data-price-currency="1" value="' + esc(pr.currency || "¥") + '" title="' + esc(t("currencyLbl")) + '"></div><div class="ow-price-cols"><span></span><span>' + esc(t("priceIn")) + "</span><span>" + esc(t("priceCached")) + "</span><span>" + esc(t("priceOut")) + "</span></div>" + pRows + '<div class="ow-price-foot"><span class="ow-hint">' + esc(t("priceHint") + (unpricedN ? " " + t("unpricedNote").replace("{0}", unpricedN) : "")) + '</span><button class="ow-btn ow-btn-ghost" data-save-prices="1">' + ic("device-floppy") + esc(t("save")) + "</button></div></div>";
+      } else {
+        body += '<p class="ow-muted">' + esc(t("noCalls")) + "</p>";
+      }
+    }
+    var tabs = "";
+    var ranges = ["today", "yesterday", "month", "cumulative"];
+    for (var i2 = 0; i2 < ranges.length; i2++) {
+      tabs += '<button class="ow-tab' + (ranges[i2] === range ? " on" : "") + '" data-rg="' + ranges[i2] + '">' + esc(t(ranges[i2])) + "</button>";
+    }
+    var prior = {};
+    try {
+      secUsage.querySelectorAll("input[data-pm],input[data-price-currency]").forEach(function(el) {
+        prior[el.getAttribute("data-price-currency") ? "@cur" : el.getAttribute("data-pm") + "|" + el.getAttribute("data-pf")] = el.value;
+      });
+    } catch (e) {
+    }
+    secUsage.innerHTML = secHead("usage", t("usage")) + '<div class="ow-card ow-usage"><div class="ow-tabs">' + tabs + "</div>" + body + "</div>";
+    try {
+      secUsage.querySelectorAll("input[data-pm]").forEach(function(el) {
+        var v = prior[el.getAttribute("data-pm") + "|" + el.getAttribute("data-pf")];
+        if (v && el.value !== v) el.value = v;
+      });
+      var curEl = secUsage.querySelector('input[data-price-currency="1"]');
+      if (curEl && prior["@cur"] && curEl.value !== prior["@cur"]) curEl.value = prior["@cur"];
+    } catch (e) {
+    }
+    secUsage.querySelectorAll("button[data-rg]").forEach(function(b) {
+      b.addEventListener("click", function() {
+        range = b.getAttribute("data-rg");
+        usage = null;
+        loadUsage();
+      });
+    });
+    var sp = secUsage.querySelector('[data-save-prices="1"]');
+    if (sp) sp.addEventListener("click", savePricesAction);
+  }
+  function refreshUsage() {
+    renderUsageRegion();
+  }
+  function logSev(line) {
+    if (/error|traceback|exception|failed|fail|refused|denied|could not|couldn't|not found|invalid|fatal|timed out|spawn/i.test(line)) return "err";
+    if (/warning|warn|attention|deprecat|exited|crash|skip/i.test(line)) return "warn";
+    return "";
+  }
+  function copyText(txt) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(String(txt)).catch(function() {
+        });
+        return;
+      }
+    } catch (e) {
+    }
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = String(txt);
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      if (document.execCommand) document.execCommand("copy");
+      document.body.removeChild(ta);
+    } catch (e) {
+    }
+  }
+  function renderLogRegion() {
+    var lines = snap && snap.log || [];
+    if (!lines.length) {
+      secLog.innerHTML = secHead("log", t("log")) + '<div class="ow-card"><p class="ow-muted">' + esc(t("noLog")) + "</p></div>";
+      return;
+    }
+    var box = secLog.querySelector(".ow-log-body");
+    var prevTop = box ? box.scrollTop : 0;
+    var wasBottom = box ? box.scrollTop + box.clientHeight >= box.scrollHeight - 8 : true;
+    var rows = "";
+    for (var i = 0; i < lines.length; i++) {
+      var sev = logSev(lines[i]);
+      rows += '<div class="ow-log-line' + (sev ? " ow-log-line-" + sev : "") + '"><span class="ow-log-dot"></span><span class="ow-log-txt">' + esc(lines[i]) + "</span></div>";
+    }
+    secLog.innerHTML = secHead("log", t("log")) + '<details class="ow-log"' + (logOpen ? " open" : "") + '><summary class="ow-flex ow-gap ow-between"><span class="ow-log-sum-lbl">' + esc(t("log")) + " · " + lines.length + '</span><span class="ow-log-acts"><button type="button" class="ow-log-btn' + (logFollow ? " on" : "") + '" data-lg-act="follow" title="' + esc(t("followLog")) + '">' + ic("arrow-down") + '</button><button type="button" class="ow-log-btn" data-lg-act="copy" title="' + esc(t("copyLog")) + '">' + ic("copy") + '</button></span></summary><div class="ow-log-body">' + rows + "</div></details>";
+    var de = secLog.querySelector(".ow-log");
+    if (de) {
+      de.addEventListener("toggle", function() {
+        logOpen = de.open;
+        try {
+          localStorage.setItem("dsh-owui-logopen", logOpen ? "1" : "0");
+        } catch (e) {
+        }
+      });
+      var body = de.querySelector(".ow-log-body");
+      if (body) body.scrollTop = logFollow || wasBottom ? body.scrollHeight : prevTop;
+      var fb = de.querySelector('[data-lg-act="follow"]');
+      if (fb) fb.addEventListener("click", function(ev) {
+        ev.preventDefault();
+        logFollow = !logFollow;
+        try {
+          localStorage.setItem("dsh-owui-logfollow", logFollow ? "1" : "0");
+        } catch (e) {
+        }
+        renderLogRegion();
+      });
+      var cp = de.querySelector('[data-lg-act="copy"]');
+      if (cp) cp.addEventListener("click", function(ev) {
+        ev.preventDefault();
+        copyText(lines.join("\n"));
+        var old = cp.textContent;
+        cp.textContent = t("copied");
+        setTimeout(function() {
+          cp.textContent = old;
+        }, 1200);
+      });
+    }
+  }
+  function refreshDynamic() {
+    renderNotice();
+    renderStatusRegion();
+    renderDiagRegion();
+    renderUsageRegion();
+    renderLogRegion();
+  }
+  function renderAll() {
+    renderHeader();
+    renderNotice();
+    renderStatusRegion();
+    renderDiagRegion();
+    renderConfigRegion();
+    renderUsageRegion();
+    renderLogRegion();
+  }
+  var ICONS = {
+    "activity": '<path d="M3 12h4l3 8l4 -16l3 8h4" />',
+    "arrow-down": '<path d="M12 5l0 14" /><path d="M18 13l-6 6" /><path d="M6 13l6 6" />',
+    "bolt": '<path d="M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11" />',
+    "chart-bar": '<path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -6" /><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -10" /><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -14" /><path d="M4 20h14" />',
+    "copy": '<path d="M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667l0 -8.666" /><path d="M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1" />',
+    "device-floppy": '<path d="M6 4h10l4 4v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2" /><path d="M10 14a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M14 4l0 4l-6 0l0 -4" />',
+    "file-text": '<path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2" /><path d="M9 9l1 0" /><path d="M9 13l6 0" /><path d="M9 17l6 0" />',
+    "key": '<path d="M16.555 3.843l3.602 3.602a2.877 2.877 0 0 1 0 4.069l-2.643 2.643a2.877 2.877 0 0 1 -4.069 0l-.301 -.301l-6.558 6.558a2 2 0 0 1 -1.239 .578l-.175 .008h-1.172a1 1 0 0 1 -.993 -.883l-.007 -.117v-1.172a2 2 0 0 1 .467 -1.284l.119 -.13l.414 -.414h2v-2h2v-2l2.144 -2.144l-.301 -.301a2.877 2.877 0 0 1 0 -4.069l2.643 -2.643a2.877 2.877 0 0 1 4.069 0" /><path d="M15 9h.01" />',
+    "player-play": '<path d="M7 4v16l13 -8l-13 -8" />',
+    "player-stop": '<path d="M5 7a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2l0 -10" />',
+    "refresh": '<path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />',
+    "settings": '<path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065" /><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" />'
+  };
+  function ic(name, cls) {
+    var body = ICONS[name];
+    if (!body) return "";
+    return '<svg class="ow-ic' + (cls ? " " + cls : "") + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + "</svg>";
+  }
+  var SEC_COLOR = { status: "#60a5fa", config: "#a78bfa", usage: "#34d399", log: "#fbbf24" };
+  var SEC_ICON = { status: "activity", config: "settings", usage: "chart-bar", log: "file-text" };
+  var BAR_COLORS = ["#38bdf8", "#a78bfa", "#34d399", "#fbbf24", "#f472b6", "#22d3ee"];
+  var STAT_COLORS = { calls: "#60a5fa", inTok: "#38bdf8", outTok: "#a78bfa", cached: "#22d3ee", latency: "#94a3b8", errs: "#f87171", cost: "#fbbf24" };
+  function secHead(key, label) {
+    var c = SEC_COLOR[key];
+    return '<div class="ow-sec-h"' + (c ? ' style="--ow-hc:' + c + '"' : "") + ">" + ic(SEC_ICON[key] || "") + esc(label) + "</div>";
+  }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function fmt(n) {
+    return (n || 0).toLocaleString();
+  }
+  function fmtMoney(n) {
+    n = Number(n) || 0;
+    if (n >= 100) return n.toFixed(0);
+    if (n >= 1) return n.toFixed(2).replace(/\.?0+$/, "");
+    return n.toFixed(4).replace(/\.?0+$/, "") || "0";
+  }
+  function fmtC(n) {
+    n = n || 0;
+    if (n >= 1e9) return (n / 1e9).toFixed(2).replace(/\.?0+$/, "") + "B";
+    if (n >= 1e6) return (n / 1e6).toFixed(2).replace(/\.?0+$/, "") + "M";
+    if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.?0+$/, "") + "K";
+    return String(n);
+  }
+  function isDark() {
+    return !!(document.body && document.body.hasAttribute("data-ds-dark-theme"));
+  }
+  function applyMode() {
+    var d = isDark();
+    panel.classList.toggle("ow-dark", d);
+    panel.classList.toggle("ow-light", !d);
+  }
+  var destroyed = false;
+  var timers = [];
+  var themeObserver = null;
+  applyMode();
+  if (typeof MutationObserver !== "undefined" && document.body) {
+    try {
+      themeObserver = new MutationObserver(function() {
+        applyMode();
+        if (mode === "overlay") anchorOverlay();
+      });
+      themeObserver.observe(document.body, { attributes: true, attributeFilter: ["data-ds-dark-theme"] });
+    } catch (e) {
+      themeObserver = null;
+    }
+  }
+  renderAll();
+  poll();
+  if (mode === "overlay") {
+    anchorOverlay();
+    var repin = setTimeout(anchorOverlay, 400);
+    timers.push(repin);
+    var anchorHits = 0;
+    var anchorTimer = setInterval(function() {
+      if (document.hidden) return;
+      if (anchorOverlay()) {
+        anchorHits += 1;
+        if (anchorHits >= 5) {
+          clearInterval(anchorTimer);
+        }
+      } else {
+        anchorHits = 0;
+      }
+    }, 800);
+    timers.push(anchorTimer);
+  }
+  function usageTick() {
+    if (destroyed || document.hidden || !panel.classList.contains("open")) return;
+    var cfg = snap && snap.config || form || {};
+    if (String(cfg.chat2apiDir || "").trim()) loadUsage();
+  }
+  timers.push(setInterval(function() {
+    if (destroyed || document.hidden || !panel.classList.contains("open")) return;
+    poll();
+  }, 3e3));
+  if (mode === "overlay") {
+    timers.push(setInterval(function() {
+      if (destroyed || document.hidden || panel.classList.contains("open")) return;
+      api("status").then(function(r) {
+        snap = r || snap;
+        updatePill(stateMeta());
+      }).catch(function() {
+      });
+    }, 1e4));
+  }
+  timers.push(setInterval(usageTick, 8e3));
+  function destroyInstance() {
+    destroyed = true;
+    for (var i = 0; i < timers.length; i++) {
+      try {
+        clearInterval(timers[i]);
+      } catch (e) {
+      }
+    }
+    if (shellObserver) {
+      try {
+        shellObserver.disconnect();
+      } catch (e) {
+      }
+      shellObserver = null;
+    }
+    if (themeObserver) {
+      try {
+        themeObserver.disconnect();
+      } catch (e) {
+      }
+      themeObserver = null;
+    }
+    for (var j = 0; j < tracked.length; j++) {
+      try {
+        tracked[j][0].removeEventListener(tracked[j][1], tracked[j][2]);
+      } catch (e) {
+      }
+    }
+    tracked.length = 0;
+    try {
+      if (btn && btn.parentNode) btn.parentNode.removeChild(btn);
+    } catch (e) {
+    }
+    try {
+      if (panel.parentNode) panel.parentNode.removeChild(panel);
+    } catch (e) {
+    }
+  }
+  return { destroy: destroyInstance, setLang };
+}
+var init_panel = __esm({
+  "lib/panel.js"() {
+  }
+});
+
+// lib/client-entry.cjs
+var React = require("react");
+var panelCore = (init_panel(), __toCommonJS(panel_exports));
+var ROUTE = "/dsh-owui-chat2api";
+var OWUI_TYPE_ID = "dsh-owui-chat2api";
+var OWUI_KIND = "owui-console";
+function OwuiGlyph(props) {
+  var size = props && props.size || 18;
+  return React.createElement("svg", {
+    viewBox: "0 0 24 24",
+    width: size,
+    height: size,
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": true,
+    style: { display: "block", flex: "0 0 auto" }
+  }, React.createElement("path", { d: "M3 12h4l3 8l4 -16l3 8h4" }));
+}
+function owuiLang() {
+  try {
+    var s = localStorage.getItem("dsh-owui-lang");
+    return s === "en" || s === "zh" ? s : /^zh/i.test(navigator.language || "") ? "zh" : "en";
+  } catch (e) {
+    return "en";
+  }
+}
+function owuiTitle() {
+  return owuiLang() === "zh" ? "OWUI 控制台" : "OWUI Console";
+}
+function owuiDescription() {
+  return owuiLang() === "zh" ? "Open WebUI 代理的状态、配置与用量" : "Open WebUI proxy status, config and usage";
+}
+function OwuiPanelBody() {
+  var ref = React.useRef(null);
+  React.useEffect(function() {
+    var el = ref.current;
+    if (!el) return void 0;
+    if (!document.querySelector("link[data-owui-panel-css]")) {
+      var link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = ROUTE + "/panel.css";
+      link.setAttribute("data-owui-panel-css", "1");
+      document.head.appendChild(link);
+    }
+    var inst = null;
+    try {
+      inst = panelCore.createPanelInstance({ mode: "embedded", mount: el });
+    } catch (e) {
+      console.error("[dsh-owui-chat2api] embedded panel failed to mount", e);
+    }
+    return function() {
+      if (inst) {
+        try {
+          inst.destroy();
+        } catch (e) {
+        }
+      }
+    };
+  }, []);
+  return React.createElement("div", { ref, className: "ow-embedded-root" });
+}
+function OwuiTitleChip(props) {
+  var title = owuiTitle();
+  var useTabInfo = props && props.useTabInfo;
+  if (typeof useTabInfo === "function") {
+    try {
+      var tab = useTabInfo().tab;
+      if (tab && tab.title) title = tab.title;
+    } catch (e) {
+    }
+  }
+  return React.createElement(React.Fragment, null, OwuiGlyph({ size: 16 }), title);
+}
+module.exports = {
+  inject: ["slots", "sidebarRightTabs"],
+  apply: function(ctx) {
+    ctx.effect(function() {
+      return ctx.sidebarRightTabs.register({
+        id: OWUI_TYPE_ID,
+        kind: OWUI_KIND,
+        title: owuiTitle,
+        guide: [{ order: 30, title: owuiTitle, description: owuiDescription, icon: OwuiGlyph }]
+      });
+    }, "owui: rightbar tab type");
+    ctx.effect(function() {
+      return ctx.slots.inject("sidebar.right.pane.tab", function() {
+        return ctx.slots.register({ name: "sidebar.right.pane.tab", key: OWUI_TYPE_ID }, OwuiPanelBody);
+      });
+    }, "owui: rightbar tab body");
+    ctx.effect(function() {
+      return ctx.slots.inject("sidebar.right.pane.tab.title", function() {
+        return ctx.slots.register({ name: "sidebar.right.pane.tab.title", key: OWUI_TYPE_ID }, OwuiTitleChip);
+      });
+    }, "owui: rightbar tab title");
+  }
+};
+;return module.exports;}})
