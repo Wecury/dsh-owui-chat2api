@@ -30,6 +30,12 @@ DeepSeek Harness (or any OpenAI-compatible client)
 - 📊 Usage dashboard: today / yesterday / month / total, ranked per model with
   colorful share bars — plus a manual **price table** (per 1M tokens, cached
   tokens priced separately) that turns the stats into a cost estimate
+- ⚡ Honest cache tracking: a cache-hit-rate card when the backend reports
+  cached tokens, a clear note when it doesn't; estimated and failed calls are
+  surfaced too
+- 🪟 Two mounts, one engine: the floating pill overlay **and** a right-sidebar
+  dock tab (DSH Desktop 2.0.10+) — the tab docks beside your conversation
+  instead of covering it; on older DSH versions you simply get the pill
 - 🧠 One-click model and reasoning-level sync (see [Reasoning effort](#reasoning-effort-))
 - 📜 Process log with error highlighting, follow mode and copy
 - 🎨 Color-coded sections with inline Tabler icons that follow the DSH theme
@@ -47,11 +53,11 @@ registers it in your profile (dependencies + bundles). Pick the profile that
 matches your setup — `desktop` for DSH Desktop, `web` for the stock web UI:
 
 ```powershell
-dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.9.0
-dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.9.0
+dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.0
+dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.0
 ```
 
-- `#v0.9.0` pins the release tag — use the version you want (omit it to
+- `#v0.10.0` pins the release tag — use the version you want (omit it to
   follow `main`).
 - Requires `git` on PATH (pnpm clones the repo). Behind a proxy? Export
   `http_proxy` / `https_proxy` first.
@@ -77,8 +83,8 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.9.0
    directory — move and rename it (`tar` ships with Windows 10+):
 
    ```powershell
-   tar -xzf dsh-owui-chat2api-0.9.0.tgz
-   Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.9.0"
+   tar -xzf dsh-owui-chat2api-0.10.0.tgz
+   Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.10.0"
    ```
 
    Upgrading over a previous manual install? If
@@ -92,7 +98,7 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.9.0
 
    ```jsonc
    "dependencies": {
-     "dsh-owui-chat2api": "link:%USERPROFILE%\\.dsh\\plugins\\dsh-owui-chat2api-0.9.0"
+     "dsh-owui-chat2api": "link:%USERPROFILE%\\.dsh\\plugins\\dsh-owui-chat2api-0.10.0"
    },
    "dsh": { "profile": { "bundles": [ /* ... */ "dsh-owui-chat2api" ] } }
    ```
@@ -107,7 +113,7 @@ Paste this to your DSH assistant and it will do the rest:
 请帮我安装 DSH 插件 dsh-owui-chat2api(GitHub 仓库 Wecury/dsh-owui-chat2api)。
 
 步骤:
-1. 执行:dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.9.0
+1. 执行:dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.0
    (用原版 web 界面就把 --profile desktop 换成 --profile web。需要本机有 git。
    如果 dsh plugin 不可用,改用手动方式:从仓库 Releases 的 Assets 下载
    dsh-owui-chat2api-<版本>.tgz,解压得到 package/ 文件夹,移动并改名为

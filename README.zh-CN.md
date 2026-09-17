@@ -30,6 +30,10 @@ DeepSeek Harness（或任何 OpenAI 兼容客户端）
 - ⚙️ 配置 Open WebUI 地址、主机、端口
 - 📊 用量面板：今天 / 昨天 / 本月 / 累计，按模型排行，彩色份额条；附手动
   **价格表**（每百万 tokens、缓存单独计价），把统计变成成本估算
+- ⚡ 诚实的缓存统计：后端上报了缓存 tokens 就显示命中率卡片，没上报就明说；
+  估算调用与失败调用也会单独标出
+- 🪟 一套引擎两种挂载：悬浮 pill 面板 + **右侧栏停靠标签页**（DSH Desktop
+  2.0.10+）——标签页停在会话旁边，不会盖住会话；旧版 DSH 自动只有 pill
 - 🧠 一键同步模型与推理等级（见[推理等级](#推理等级-)）
 - 📜 进程日志：错误高亮、跟随最新、一键复制
 - 🎨 分区配色 + 内联 Tabler 图标，跟随 DSH 深浅主题，零外部请求
@@ -45,11 +49,11 @@ DeepSeek Harness（或任何 OpenAI 兼容客户端）
 profile：DSH Desktop 用 `desktop`，原版 web 界面用 `web`：
 
 ```powershell
-dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.9.0
-dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.9.0
+dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.0
+dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.0
 ```
 
-- `#v0.9.0` 锁定 Release tag，换成你想要的版本（不写则跟踪 `main` 分支）。
+- `#v0.10.0` 锁定 Release tag，换成你想要的版本（不写则跟踪 `main` 分支）。
 - 需要本机有 `git`（pnpm 走 git 拉取）；网络需要代理时先设
   `http_proxy` / `https_proxy` 再执行。
 - Windows 下报 `[ERR_PNPM_EPERM] ... rename ..._tmp_...`？之前手动装过
@@ -71,8 +75,8 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.9.0
    （Windows 10+ 自带 `tar` 命令）：
 
    ```powershell
-   tar -xzf dsh-owui-chat2api-0.9.0.tgz
-   Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.9.0"
+   tar -xzf dsh-owui-chat2api-0.10.0.tgz
+   Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.10.0"
    ```
 
    在旧的手动安装上升级？若
@@ -85,7 +89,7 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.9.0
 
    ```jsonc
    "dependencies": {
-     "dsh-owui-chat2api": "link:%USERPROFILE%\\.dsh\\plugins\\dsh-owui-chat2api-0.9.0"
+     "dsh-owui-chat2api": "link:%USERPROFILE%\\.dsh\\plugins\\dsh-owui-chat2api-0.10.0"
    },
    "dsh": { "profile": { "bundles": [ /* ... */ "dsh-owui-chat2api" ] } }
    ```
@@ -100,7 +104,7 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.9.0
 请帮我安装 DSH 插件 dsh-owui-chat2api（GitHub 仓库 Wecury/dsh-owui-chat2api）。
 
 步骤：
-1. 执行：dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.9.0
+1. 执行：dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.0
    （用原版 web 界面就把 --profile desktop 换成 --profile web。需要本机有 git。
    如果 dsh plugin 不可用，改用手动方式：从仓库 Releases 的 Assets 下载
    dsh-owui-chat2api-<版本>.tgz，解压得到 package/ 文件夹，移动并改名为
