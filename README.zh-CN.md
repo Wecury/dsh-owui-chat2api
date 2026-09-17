@@ -45,13 +45,21 @@ DeepSeek Harness（或任何 OpenAI 兼容客户端）
 profile：DSH Desktop 用 `desktop`，原版 web 界面用 `web`：
 
 ```powershell
-dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.8.0
-dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.8.0
+dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.9.0
+dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.9.0
 ```
 
-- `#v0.8.0` 锁定 Release tag，换成你想要的版本（不写则跟踪 `main` 分支）。
+- `#v0.9.0` 锁定 Release tag，换成你想要的版本（不写则跟踪 `main` 分支）。
 - 需要本机有 `git`（pnpm 走 git 拉取）；网络需要代理时先设
   `http_proxy` / `https_proxy` 再执行。
+- Windows 下报 `[ERR_PNPM_EPERM] ... rename ..._tmp_...`？之前手动装过
+  （方式 B）留下的 junction 挡路了——**只删链接本身**再重试：
+
+  ```powershell
+  cmd /c rmdir "%USERPROFILE%\.dsh\profiles\<desktop|web>\node_modules\dsh-owui-chat2api"
+  ```
+
+  （对 junction 用 `rmdir` 只删链接、不动目标文件夹。）
 - 装完重启 DSH 即可。以后升级（`--profile` 与安装时一致）：
   `dsh plugin --profile <desktop|web> update dsh-owui-chat2api`。
 
@@ -63,16 +71,21 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.8.0
    （Windows 10+ 自带 `tar` 命令）：
 
    ```powershell
-   tar -xzf dsh-owui-chat2api-0.8.0.tgz
-   Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.8.0"
+   tar -xzf dsh-owui-chat2api-0.9.0.tgz
+   Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.9.0"
    ```
+
+   在旧的手动安装上升级？若
+   `%USERPROFILE%\.dsh\profiles\<desktop|web>\node_modules\dsh-owui-chat2api`
+   已存在（旧 junction），先用 `cmd /c rmdir "<该路径>"` 删掉链接，让新的
+   `link:` 依赖解析到新目录，而不是指向残留的旧目标。
 
 3. 在 `%USERPROFILE%\.dsh\profiles\<desktop|web>\package.json` 里注册
    （DSH Desktop 用 `desktop`，原版 web 界面用 `web`）：
 
    ```jsonc
    "dependencies": {
-     "dsh-owui-chat2api": "link:%USERPROFILE%\\.dsh\\plugins\\dsh-owui-chat2api-0.8.0"
+     "dsh-owui-chat2api": "link:%USERPROFILE%\\.dsh\\plugins\\dsh-owui-chat2api-0.9.0"
    },
    "dsh": { "profile": { "bundles": [ /* ... */ "dsh-owui-chat2api" ] } }
    ```
@@ -87,7 +100,7 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.8.0
 请帮我安装 DSH 插件 dsh-owui-chat2api（GitHub 仓库 Wecury/dsh-owui-chat2api）。
 
 步骤：
-1. 执行：dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.8.0
+1. 执行：dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.9.0
    （用原版 web 界面就把 --profile desktop 换成 --profile web。需要本机有 git。
    如果 dsh plugin 不可用，改用手动方式：从仓库 Releases 的 Assets 下载
    dsh-owui-chat2api-<版本>.tgz，解压得到 package/ 文件夹，移动并改名为
@@ -114,6 +127,7 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.8.0
 | 登录失败 / 提示重新登录 | 面板里点 **Login**，在弹窗里登一次即可 |
 | 模型不在 DSH 模型列表里 | 配置区点 **Sync models & reasoning levels**，然后重启 DSH |
 | 地址还是 `your-open-webui.example.com` | 那是占位符，改成本机实际地址再 Start |
+| 安装时报 `[ERR_PNPM_EPERM] ... rename ..._tmp_...` | 旧的手动安装留下的 junction 挡路——`cmd /c rmdir "%USERPROFILE%\.dsh\profiles\<desktop|web>\node_modules\dsh-owui-chat2api"`（只删链接），然后重新执行安装命令 |
 
 ## 推理等级 🧠
 
