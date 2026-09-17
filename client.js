@@ -35,13 +35,205 @@ function createPanelInstance(opts) {
   var mountEl = opts && opts.mount || null;
   var ROUTE2 = "/dsh-owui-chat2api";
   var LS_KEY = "dsh-owui-lang";
+  var FALLBACK = {
+    en: {
+      title: "Open WebUI chat2api",
+      subtitle: "Manage the bundled reverse proxy and watch its usage.",
+      running: "Running",
+      stopped: "Stopped",
+      exited: "Exited",
+      crashed: "Crashed",
+      unknown: "Unknown",
+      started: "started",
+      exitInfo: "exit {0} sig {1}",
+      ready: "Ready",
+      attention: "Attention",
+      ok: "OK",
+      missing: "Missing",
+      python: "Python",
+      deps: "Deps",
+      config: "Configuration",
+      dir: "chat2api directory",
+      dirHint: "Bundled directory is pre-filled. Only change to point at another copy.",
+      baseUrl: "Open WebUI URL",
+      host: "Host",
+      port: "Port",
+      autoStart: "Start automatically with DSH",
+      save: "Save",
+      saved: "Saved",
+      effortScan: "Sync models & reasoning levels",
+      effortScanHint: "Discovers models through the proxy, adds any missing ones plus reasoningEfforts into ~/.dsh/settings.yaml (backed up first). Restart DSH to apply.",
+      effortRescan: "Force re-scan",
+      effortRescanHint: "Ignore cached probe results and re-probe every model - use after the backend gains or renames models.",
+      effortScanPatched: "Patched:",
+      effortScanAlready: "already:",
+      effortScanSkipped: "not in a matched provider:",
+      effortScanModelsAdded: "Models added:",
+      effortScanModelsAlready: "models already present:",
+      effortScanProviderCreated: "Auto-created provider:",
+      effortScanDone: "Nothing to change.",
+      effortScanRestart: " - restart DSH to apply.",
+      usage: "Usage",
+      status: "Status",
+      today: "Today",
+      yesterday: "Yesterday",
+      month: "Month",
+      cumulative: "Cumulative",
+      calls: "Calls",
+      inTok: "In",
+      outTok: "Out",
+      cached: "Cached",
+      latency: "Avg latency",
+      cacheHit: "Cache hit",
+      cacheHitTip: "Cached tokens: {0} of {1} prompt",
+      cacheNote: "Backend does not report cache hits - cache not counted",
+      est: "Estimated",
+      estTip: "Calls whose usage was estimated because the backend returned no usage data",
+      fail: "Failed",
+      m: "Model",
+      ctx: "Count",
+      tin: "In",
+      tout: "Out",
+      tcached: "Cached",
+      tavg: "Avg ms",
+      terr: "Err",
+      log: "Process log",
+      noCalls: "No calls in this range.",
+      loading: "Loading...",
+      others: "Other {0}",
+      noLog: "No process output yet.",
+      copyLog: "Copy",
+      copied: "Copied",
+      followLog: "Follow",
+      unreachable: "Usage endpoint unreachable at {url}",
+      saveFirst: "Save configuration to enable the dashboard.",
+      start: "Start",
+      stop: "Stop",
+      login: "Login",
+      open: "Open WebUI chat2api",
+      already: "already running",
+      notRunning: "not running",
+      loginOk: "Logged in - Open WebUI credential saved.",
+      loginFail: "Login did not save a new credential - check the process log.",
+      scanStarted: "Scan started - many models can take a while; the result appears here when it finishes.",
+      scanRunning: "Scan running - the result will appear here when it finishes.",
+      cost: "Cost",
+      pricing: "Prices · per 1M tokens",
+      currencyLbl: "Currency symbol",
+      priceIn: "In",
+      priceCached: "Cached",
+      priceOut: "Out",
+      priceHint: "What you actually pay per million tokens. Unpriced models are counted but never billed.",
+      unpricedNote: "{0} model(s) have no price yet."
+    },
+    zh: {
+      title: "Open WebUI chat2api",
+      subtitle: "管理内置反代并查看用量。",
+      running: "运行中",
+      stopped: "已停止",
+      exited: "已退出",
+      crashed: "崩溃",
+      unknown: "未知",
+      started: "启动于",
+      exitInfo: "退出 {0} 信号 {1}",
+      ready: "就绪",
+      attention: "需注意",
+      ok: "正常",
+      missing: "缺失",
+      python: "Python",
+      deps: "依赖",
+      config: "配置",
+      dir: "chat2api 目录",
+      dirHint: "默认已指向内置目录；如需使用其他副本再修改。",
+      baseUrl: "Open WebUI 地址",
+      host: "主机",
+      port: "端口",
+      autoStart: "随 DSH 自动启动",
+      save: "保存",
+      saved: "已保存",
+      effortScan: "一键同步模型与推理等级",
+      effortScanHint: "扫描后端模型,把缺失的模型和 reasoningEfforts 写入 ~/.dsh/settings.yaml(自动备份)。重启 DSH 生效。",
+      effortRescan: "强制重扫",
+      effortRescanHint: "忽略缓存,重新探测所有模型 - 后端新增或改名模型后使用。",
+      effortScanPatched: "已写入:",
+      effortScanAlready: "已有:",
+      effortScanSkipped: "不在匹配的 provider 列表:",
+      effortScanModelsAdded: "已添加模型:",
+      effortScanModelsAlready: "模型已存在:",
+      effortScanProviderCreated: "已自动创建模型提供方:",
+      effortScanDone: "无需改动。",
+      effortScanRestart: " - 重启 DSH 生效。",
+      usage: "用量",
+      status: "状态",
+      today: "今天",
+      yesterday: "昨天",
+      month: "本月",
+      cumulative: "累计",
+      calls: "调用",
+      inTok: "输入",
+      outTok: "输出",
+      cached: "缓存",
+      latency: "平均延迟",
+      cacheHit: "缓存命中",
+      cacheHitTip: "命中 {0} / 输入 {1} tokens",
+      cacheNote: "后端未上报缓存命中,缓存不计入统计",
+      est: "估算",
+      estTip: "后端未回传用量,按请求大小估算的调用数",
+      fail: "失败",
+      m: "模型",
+      ctx: "次数",
+      tin: "入",
+      tout: "出",
+      tcached: "缓存",
+      tavg: "平均 ms",
+      terr: "误",
+      log: "进程日志",
+      noCalls: "该时间段暂无调用。",
+      loading: "加载中...",
+      others: "其他 {0} 个",
+      noLog: "暂无进程输出。",
+      copyLog: "复制",
+      copied: "已复制",
+      followLog: "跟随",
+      unreachable: "用量地址无法访问:{url}",
+      saveFirst: "保存配置后即可查看用量。",
+      start: "启动",
+      stop: "停止",
+      login: "登录",
+      open: "Open WebUI chat2api",
+      already: "已在运行",
+      notRunning: "未在运行",
+      loginOk: "登录成功 - Open WebUI 凭据已保存。",
+      loginFail: "登录未保存新凭据 - 请查看进程日志。",
+      scanStarted: "扫描已开始 - 模型较多时需要一些时间，完成后会在这里提示。",
+      scanRunning: "扫描进行中 - 完成后在这里提示结果。",
+      cost: "成本",
+      pricing: "价格表 · 每百万 tokens",
+      currencyLbl: "货币符号",
+      priceIn: "输入",
+      priceCached: "缓存",
+      priceOut: "输出",
+      priceHint: "填写你实际支付的单价（每百万 tokens）。未填价的模型只统计、不计费。",
+      unpricedNote: "还有 {0} 个模型未填价。"
+    }
+  };
+  var i18nSig = null;
+  var i18nMerged = null;
   function dicts() {
     return window.__dshOwuiI18n || {};
   }
+  function mergedDict() {
+    var I = dicts().dict || {};
+    var sig = lang + "|" + (I.en ? Object.keys(I.en).length : -1) + "|" + (I.zh ? Object.keys(I.zh).length : -1);
+    if (i18nMerged && i18nSig === sig) return i18nMerged;
+    var en = Object.assign({}, FALLBACK.en, I.en || {});
+    i18nMerged = lang === "zh" ? Object.assign({}, en, FALLBACK.zh, I.zh || {}) : en;
+    i18nSig = sig;
+    return i18nMerged;
+  }
   function t(k) {
-    var I18N = dicts().dict || { en: {}, zh: {} };
-    var d = I18N[lang] || I18N.en;
-    return d[k] != null ? d[k] : I18N.en[k] != null ? I18N.en[k] : k;
+    var m = mergedDict();
+    return m[k] != null ? m[k] : k;
   }
   function detectLang() {
     try {
@@ -209,6 +401,13 @@ function createPanelInstance(opts) {
   var logOpen = (function() {
     try {
       return localStorage.getItem("dsh-owui-logopen") === "1";
+    } catch (e) {
+      return false;
+    }
+  })();
+  var priceOpen = (function() {
+    try {
+      return localStorage.getItem("dsh-owui-priceopen") === "1";
     } catch (e) {
       return false;
     }
@@ -508,7 +707,8 @@ function createPanelInstance(opts) {
     var ok = d.python === "ok" && d.deps === "ok";
     var realPath = d.pythonPath && !/^(python|python3|py)(\.exe)?$/i.test(d.pythonPath);
     var msgNote = !ok && d.message ? noteHtml(trMsg(d.message), d.python === "missing" ? "err" : "warn") : "";
-    var html = '<div class="ow-card ow-diag"><span class="ow-badge ' + (ok ? "ok" : "warn") + '">' + (ok ? t("ready") : t("attention")) + '</span><div class="ow-diag-list"><div class="ow-diag-row"><span class="ow-k">' + t("python") + '</span><b class="' + (d.python === "ok" ? "ok" : "err") + '">' + esc(String(d.python)) + '</b></div><div class="ow-diag-row"><span class="ow-k">' + t("deps") + '</span><b class="' + (d.deps === "ok" ? "ok" : "err") + '">' + esc(String(d.deps)) + "</b></div></div>" + (realPath ? '<div class="ow-diag-path">' + esc(d.pythonPath) + "</div>" : "") + (msgNote ? '<div class="ow-diag-note">' + msgNote + "</div>" : "") + "</div>";
+    var diagLbl = { ok: t("ok"), missing: t("missing"), unknown: t("unknown") };
+    var html = '<div class="ow-card ow-diag"><span class="ow-badge ' + (ok ? "ok" : "warn") + '">' + (ok ? t("ready") : t("attention")) + '</span><div class="ow-diag-list"><div class="ow-diag-row"><span class="ow-k">' + t("python") + '</span><b class="' + (d.python === "ok" ? "ok" : "err") + '">' + esc(diagLbl[d.python] || d.python) + '</b></div><div class="ow-diag-row"><span class="ow-k">' + t("deps") + '</span><b class="' + (d.deps === "ok" ? "ok" : "err") + '">' + esc(diagLbl[d.deps] || d.deps) + "</b></div></div>" + (realPath ? '<div class="ow-diag-path">' + esc(d.pythonPath) + "</div>" : "") + (msgNote ? '<div class="ow-diag-note">' + msgNote + "</div>" : "") + "</div>";
     secDiag.innerHTML = html;
   }
   function fieldHtml(k, label, hint, placeholder) {
@@ -555,24 +755,39 @@ function createPanelInstance(opts) {
     } else if (!usage) {
       body = '<p class="ow-muted">' + esc(t("loading")) + "</p>";
     } else {
-      var s = usage.summary || { calls: 0, in_tokens: 0, out_tokens: 0, cached_tokens: 0, latency_ms: 0, errors: 0 };
+      var s = usage.summary || { calls: 0, in_tokens: 0, out_tokens: 0, cached_tokens: 0, latency_ms: 0, errors: 0, estimated_calls: 0, cache_reported_calls: 0 };
+      var cacheReported = s.cache_reported_calls;
+      var cacheKnown = typeof cacheReported === "number" && cacheReported > 0;
+      var cacheFieldPresent = typeof cacheReported === "number";
       var stats = [
-        [t("calls"), fmt(s.calls), STAT_COLORS.calls],
-        [t("inTok"), fmt(s.in_tokens), STAT_COLORS.inTok],
-        [t("outTok"), fmt(s.out_tokens), STAT_COLORS.outTok],
-        [t("cached"), fmt(s.cached_tokens), STAT_COLORS.cached],
-        [t("latency"), s.calls ? fmt(Math.round(s.latency_ms / s.calls)) + " ms" : "-", STAT_COLORS.latency],
-        [t("errs"), fmt(s.errors), s.errors ? STAT_COLORS.errs : null]
+        [t("calls"), fmtC(s.calls), STAT_COLORS.calls],
+        [t("inTok"), fmtC(s.in_tokens), STAT_COLORS.inTok],
+        [t("outTok"), fmtC(s.out_tokens), STAT_COLORS.outTok]
       ];
+      if (cacheKnown) {
+        var hitPct = s.in_tokens ? Math.round((s.cached_tokens || 0) / s.in_tokens * 100) : 0;
+        stats.push([t("cacheHit"), hitPct + "%", STAT_COLORS.cacheHit, t("cacheHitTip").replace("{0}", fmtC(s.cached_tokens || 0)).replace("{1}", fmtC(s.in_tokens || 0))]);
+      }
+      stats.push([t("latency"), s.calls ? fmtDur(s.latency_ms / s.calls) : "-", STAT_COLORS.latency]);
+      if ((s.estimated_calls || 0) > 0) {
+        stats.push([t("est"), fmtC(s.estimated_calls), STAT_COLORS.est, t("estTip")]);
+      }
+      if ((s.errors || 0) > 0) {
+        stats.push([t("fail"), fmtC(s.errors), STAT_COLORS.errs]);
+      }
       if (usage.priced && typeof s.cost === "number") {
         stats.push([t("cost"), (usage.currency || "¥") + " " + fmtMoney(s.cost), STAT_COLORS.cost]);
       }
       body = '<div class="ow-stats">';
       for (var i = 0; i < stats.length; i++) {
         var sc = stats[i][2] ? ' style="--ow-sc:' + stats[i][2] + '"' : "";
-        body += '<div class="ow-stat"' + sc + '><div class="v">' + esc(stats[i][1]) + '</div><div class="l">' + esc(stats[i][0]) + "</div></div>";
+        var tip = stats[i][3] ? ' title="' + esc(stats[i][3]) + '"' : "";
+        body += '<div class="ow-stat"' + sc + tip + '><div class="v">' + esc(stats[i][1]) + '</div><div class="l">' + esc(stats[i][0]) + "</div></div>";
       }
       body += "</div>";
+      if (!cacheKnown && cacheFieldPresent && s.calls) {
+        body += '<p class="ow-muted ow-cache-note">' + esc(t("cacheNote")) + "</p>";
+      }
       var rows = usage.per_model || [];
       if (rows.length) {
         var list = rows.map(function(m) {
@@ -604,8 +819,11 @@ function createPanelInstance(opts) {
           var mm = shown[gk];
           var tk = mm.in + mm.out;
           var pct = total ? tk / total * 100 : 0;
-          var avgs = mm.calls ? fmt(Math.round(mm.lat / mm.calls)) + " ms" : "-";
-          var title = (mm.model || "") + " · " + fmtC(mm.calls) + " " + t("calls") + " · " + t("inTok") + " " + fmtC(mm.in) + " · " + t("outTok") + " " + fmtC(mm.out) + " · " + t("cached") + " " + fmtC(mm.cached) + " · " + t("latency") + " " + avgs + " · " + t("errs") + " " + fmtC(mm.err);
+          var avgs = mm.calls ? fmtDur(mm.lat / mm.calls) : "-";
+          var title = (mm.model || "") + " · " + fmtC(mm.calls) + " " + t("calls") + " · " + t("inTok") + " " + fmtC(mm.in) + " · " + t("outTok") + " " + fmtC(mm.out);
+          if (cacheKnown) title += " · " + t("cached") + " " + fmtC(mm.cached);
+          title += " · " + t("latency") + " " + avgs;
+          if (mm.err) title += " · " + t("fail") + " " + fmtC(mm.err);
           if (usage.priced && mm.model && mm.cost != null && mm.model.indexOf(t("others").split("{0}")[0]) !== 0) {
             title += " · " + t("cost") + " " + (usage.currency || "¥") + fmtMoney(mm.cost);
           }
@@ -622,7 +840,7 @@ function createPanelInstance(opts) {
           pRows += '<div class="ow-price-row"><span class="ow-price-nm" title="' + esc(pm) + '">' + esc(pm) + '</span><input class="ow-price-in" type="number" min="0" step="any" inputmode="decimal" data-pm="' + esc(pm) + '" data-pf="input" value="' + (pv.input === void 0 || pv.input === null ? "" : String(pv.input)) + '"><input class="ow-price-in" type="number" min="0" step="any" inputmode="decimal" data-pm="' + esc(pm) + '" data-pf="cached" value="' + (pv.cached === void 0 || pv.cached === null ? "" : String(pv.cached)) + '"><input class="ow-price-in" type="number" min="0" step="any" inputmode="decimal" data-pm="' + esc(pm) + '" data-pf="output" value="' + (pv.output === void 0 || pv.output === null ? "" : String(pv.output)) + '"></div>';
         }
         var unpricedN = (usage.unpriced || []).length;
-        body += '<div class="ow-price"><div class="ow-price-h"><span>' + esc(t("pricing")) + '</span><input class="ow-price-cur" type="text" maxlength="8" data-price-currency="1" value="' + esc(pr.currency || "¥") + '" title="' + esc(t("currencyLbl")) + '"></div><div class="ow-price-cols"><span></span><span>' + esc(t("priceIn")) + "</span><span>" + esc(t("priceCached")) + "</span><span>" + esc(t("priceOut")) + "</span></div>" + pRows + '<div class="ow-price-foot"><span class="ow-hint">' + esc(t("priceHint") + (unpricedN ? " " + t("unpricedNote").replace("{0}", unpricedN) : "")) + '</span><button class="ow-btn ow-btn-ghost" data-save-prices="1">' + ic("device-floppy") + esc(t("save")) + "</button></div></div>";
+        body += '<details class="ow-price"' + (priceOpen ? " open" : "") + '><summary class="ow-price-sum"><span class="ow-log-sum-lbl">' + esc(t("pricing")) + "</span>" + (unpricedN ? '<span class="ow-badge warn" title="' + esc(t("unpricedNote").replace("{0}", unpricedN)) + '">' + unpricedN + "</span>" : "") + '</summary><div class="ow-price-body"><div class="ow-price-h"><span class="ow-hint">' + esc(t("currencyLbl")) + '</span><input class="ow-price-cur" type="text" maxlength="8" data-price-currency="1" value="' + esc(pr.currency || "¥") + '" title="' + esc(t("currencyLbl")) + '"></div><div class="ow-price-cols"><span></span><span>' + esc(t("priceIn")) + "</span><span>" + esc(t("priceCached")) + "</span><span>" + esc(t("priceOut")) + "</span></div>" + pRows + '<div class="ow-price-foot"><span class="ow-hint">' + esc(t("priceHint") + (unpricedN ? " " + t("unpricedNote").replace("{0}", unpricedN) : "")) + '</span><button class="ow-btn ow-btn-ghost" data-save-prices="1">' + ic("device-floppy") + esc(t("save")) + "</button></div></div></details>";
       } else {
         body += '<p class="ow-muted">' + esc(t("noCalls")) + "</p>";
       }
@@ -658,6 +876,14 @@ function createPanelInstance(opts) {
     });
     var sp = secUsage.querySelector('[data-save-prices="1"]');
     if (sp) sp.addEventListener("click", savePricesAction);
+    var pe = secUsage.querySelector(".ow-price");
+    if (pe) pe.addEventListener("toggle", function() {
+      priceOpen = pe.open;
+      try {
+        localStorage.setItem("dsh-owui-priceopen", priceOpen ? "1" : "0");
+      } catch (e) {
+      }
+    });
   }
   function refreshUsage() {
     renderUsageRegion();
@@ -774,7 +1000,7 @@ function createPanelInstance(opts) {
   var SEC_COLOR = { status: "#60a5fa", config: "#a78bfa", usage: "#34d399", log: "#fbbf24" };
   var SEC_ICON = { status: "activity", config: "settings", usage: "chart-bar", log: "file-text" };
   var BAR_COLORS = ["#38bdf8", "#a78bfa", "#34d399", "#fbbf24", "#f472b6", "#22d3ee"];
-  var STAT_COLORS = { calls: "#60a5fa", inTok: "#38bdf8", outTok: "#a78bfa", cached: "#22d3ee", latency: "#94a3b8", errs: "#f87171", cost: "#fbbf24" };
+  var STAT_COLORS = { calls: "#60a5fa", inTok: "#34d399", outTok: "#f472b6", cached: "#a78bfa", cacheHit: "#a78bfa", latency: "#94a3b8", errs: "#f87171", est: "#fb923c", cost: "#fbbf24" };
   function secHead(key, label) {
     var c = SEC_COLOR[key];
     return '<div class="ow-sec-h"' + (c ? ' style="--ow-hc:' + c + '"' : "") + ">" + ic(SEC_ICON[key] || "") + esc(label) + "</div>";
@@ -790,6 +1016,12 @@ function createPanelInstance(opts) {
     if (n >= 100) return n.toFixed(0);
     if (n >= 1) return n.toFixed(2).replace(/\.?0+$/, "");
     return n.toFixed(4).replace(/\.?0+$/, "") || "0";
+  }
+  function fmtDur(ms) {
+    ms = Number(ms) || 0;
+    if (ms < 1e3) return Math.round(ms) + " ms";
+    if (ms < 6e4) return Math.round(ms / 100) / 10 + " s";
+    return Math.round(ms / 6e3) / 10 + " min";
   }
   function fmtC(n) {
     n = n || 0;

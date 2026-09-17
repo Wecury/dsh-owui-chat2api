@@ -54,7 +54,15 @@ CREATE TABLE IF NOT EXISTS usage (
     estimated   INTEGER    NOT NULL DEFAULT 0,  -- 1 when usage was not in the
                                                 -- upstream response and was
                                                 -- zero-filled or estimated
-    error       TEXT       NOT NULL DEFAULT ''
+    error       TEXT       NOT NULL DEFAULT '',
+    cache_reported INTEGER NOT NULL DEFAULT 0   -- 1 when the upstream response
+                                                -- itself carried a cache-token
+                                                -- field (cached_tokens or
+                                                -- prompt_tokens_details.*), so
+                                                -- a cached_tokens of 0 means
+                                                -- "no hits" rather than "not
+                                                -- tracked". See
+                                                -- _cache_reported_from_usage.
 );
 CREATE INDEX IF NOT EXISTS usage_ts_idx   ON usage(ts);
 CREATE INDEX IF NOT EXISTS usage_model_idx ON usage(model);
@@ -80,6 +88,13 @@ def _usage_init():
     conn = _usage_db_connect()
     try:
         conn.executescript(_USAGE_SCHEMA)
+        # Lightweight migration for DBs created before 0.10: same table, new
+        # cache_reported column (old rows default to 0 = treated as unknown).
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(usage)")}
+        if "cache_reported" not in cols:
+            conn.execute(
+                "ALTER TABLE usage ADD COLUMN cache_reported INTEGER NOT NULL DEFAULT 0"
+            )
         conn.commit()
     finally:
         conn.close()
@@ -99,8 +114,8 @@ def usage_insert(row: dict):
         conn.execute(
             "INSERT INTO usage "
             "(ts, model, in_tokens, out_tokens, cached_tokens, "
-            " latency_ms, status, is_stream, estimated, error) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            " latency_ms, status, is_stream, estimated, error, cache_reported) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (
                 row["ts"],
                 row["model"],
@@ -112,6 +127,7 @@ def usage_insert(row: dict):
                 1 if row.get("is_stream") else 0,
                 1 if row.get("estimated") else 0,
                 str(row.get("error") or "")[:500],
+                1 if row.get("cache_reported") else 0,
             ),
         )
         # Bounded history: occasionally drop rows older than the retention
@@ -194,7 +210,7 @@ def usage_query(range_kind: str = "today", limit: int = 0) -> dict:
         if range_kind == "recent":
             rows = conn.execute(
                 "SELECT ts, model, in_tokens, out_tokens, cached_tokens, "
-                "latency_ms, status, is_stream, estimated, error "
+                "latency_ms, status, is_stream, estimated, error, cache_reported "
                 "FROM usage ORDER BY ts DESC LIMIT ?",
                 (int(limit) if limit else 100,),
             ).fetchall()
@@ -207,7 +223,9 @@ def usage_query(range_kind: str = "today", limit: int = 0) -> dict:
             "  COALESCE(SUM(out_tokens),0)    AS out_tokens, "
             "  COALESCE(SUM(cached_tokens),0) AS cached_tokens, "
             "  COALESCE(SUM(latency_ms),0)    AS latency_ms, "
-            "  COALESCE(SUM(status != 200),0) AS errors "
+            "  COALESCE(SUM(status != 200),0) AS errors, "
+            "  COALESCE(SUM(estimated),0)     AS estimated_calls, "
+            "  COALESCE(SUM(cache_reported),0) AS cache_reported_calls "
             f"FROM usage {where}",
             params,
         ).fetchone()
@@ -219,7 +237,9 @@ def usage_query(range_kind: str = "today", limit: int = 0) -> dict:
             "  COALESCE(SUM(out_tokens),0)    AS out_tokens, "
             "  COALESCE(SUM(cached_tokens),0) AS cached_tokens, "
             "  COALESCE(SUM(latency_ms),0)    AS latency_ms, "
-            "  COALESCE(SUM(status != 200),0) AS errors "
+            "  COALESCE(SUM(status != 200),0) AS errors, "
+            "  COALESCE(SUM(estimated),0)     AS estimated_calls, "
+            "  COALESCE(SUM(cache_reported),0) AS cache_reported_calls "
             f"FROM usage {where} GROUP BY model ORDER BY calls DESC",
             params,
         ).fetchall()
@@ -280,6 +300,20 @@ def _cached_tokens_from_usage(usage: dict) -> int:
     v = usage.get("cached_tokens")
     if isinstance(v, (int, float)):
         return int(v)
+    return 0
+
+
+def _cache_reported_from_usage(usage: dict) -> int:
+    """1 when the upstream response itself carried a cache-token field, so a
+    cached_tokens of 0 means "no cache hits" rather than "cache untracked".
+    Mirrors _cached_tokens_from_usage's accepted shapes."""
+    if not isinstance(usage, dict):
+        return 0
+    details = usage.get("prompt_tokens_details")
+    if isinstance(details, dict) and "cached_tokens" in details:
+        return 1
+    if "cached_tokens" in usage:
+        return 1
     return 0
 
 
@@ -374,6 +408,7 @@ def build_usage_row(
         "is_stream": bool(is_stream),
         "estimated": False,
         "error": error or "",
+        "cache_reported": 0,
     }
 
     used_upstream = False
@@ -384,6 +419,7 @@ def build_usage_row(
             row["in_tokens"] = int(pt or 0)
             row["out_tokens"] = int(ct or 0)
             row["cached_tokens"] = _cached_tokens_from_usage(upstream_usage)
+            row["cache_reported"] = _cache_reported_from_usage(upstream_usage)
             used_upstream = True
 
     if not used_upstream and status == 200:

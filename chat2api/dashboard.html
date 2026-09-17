@@ -63,18 +63,28 @@ async function load() {
 }
 
 function render(d) {
-  const s = d.summary || {calls:0,in_tokens:0,out_tokens:0,cached_tokens:0,latency_ms:0,errors:0};
+  const s = d.summary || {calls:0,in_tokens:0,out_tokens:0,cached_tokens:0,latency_ms:0,errors:0,estimated_calls:0,cache_reported_calls:0};
   document.getElementById("sub").textContent =
     "range=" + d.range + (d.since ? " · since " + new Date(d.since*1000).toLocaleString() : "");
 
-  const cards = [
-    ["Calls", fmt(s.calls)],
-    ["Input tokens", fmt(s.in_tokens)],
-    ["Output tokens", fmt(s.out_tokens)],
-    ["Cached tokens", fmt(s.cached_tokens)],
-    ["Avg latency", s.calls ? fmt(Math.round(s.latency_ms/s.calls)) + " ms" : "—"],
-    ["Errors", fmt(s.errors)],
-  ].map(([l,v]) => `<div class="card"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+  const cacheKnown = (s.cache_reported_calls||0) > 0;
+  const cards = [];
+  cards.push(["Calls", fmt(s.calls)]);
+  cards.push(["Input tokens", fmt(s.in_tokens)]);
+  cards.push(["Output tokens", fmt(s.out_tokens)]);
+  if (cacheKnown) {
+    const pct = s.in_tokens ? Math.round((s.cached_tokens||0) / s.in_tokens * 100) : 0;
+    cards.push(["Cache hit", pct + "%"]);
+  } else {
+    cards.push(["Cache", "— (not reported)"]);
+  }
+  cards.push(["Avg latency", s.calls ? fmt(Math.round(s.latency_ms/s.calls)) + " ms" : "—"]);
+  if (s.estimated_calls) cards.push(["Estimated calls", fmt(s.estimated_calls)]);
+  if (s.errors) cards.push(["Failed", fmt(s.errors)]);
+  const cardsHtml = cards.map(([l,v]) =>
+    `<div class="card"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
+  const caveat = cacheKnown ? "" :
+    `<div class="sub">* The upstream chain does not report cache hits, so cache tokens are not counted.</div>`;
 
   const maxDay = Math.max(1, ...(d.daily||[]).map(x => (x.in_tokens||0)+(x.out_tokens||0)));
   const bars = (d.daily||[]).map((x,i) => {
@@ -89,14 +99,14 @@ function render(d) {
     : `<div class="empty">no data in this range</div>`;
 
   const rows = (d.per_model||[]).map(m =>
-    `<tr><td>${m.model||"—"}</td><td>${fmt(m.calls)}</td><td>${fmt(m.in_tokens)}</td><td>${fmt(m.out_tokens)}</td><td>${fmt(m.cached_tokens)}</td><td>${m.calls ? Math.round(m.latency_ms/m.calls) : 0}</td><td>${fmt(m.errors)}</td></tr>`
+    `<tr><td>${m.model||"—"}</td><td>${fmt(m.calls)}</td><td>${fmt(m.in_tokens)}</td><td>${fmt(m.out_tokens)}</td><td>${cacheKnown ? fmt(m.cached_tokens) : "—"}</td><td>${m.calls ? Math.round(m.latency_ms/m.calls) : 0}</td><td>${fmt(m.estimated_calls||0)}</td><td>${fmt(m.errors)}</td></tr>`
   ).join("");
   const table = rows
-    ? `<table><thead><tr><th>Model</th><th>Calls</th><th>In</th><th>Out</th><th>Cached</th><th>Avg ms</th><th>Err</th></tr></thead><tbody>${rows}</tbody></table>`
+    ? `<table><thead><tr><th>Model</th><th>Calls</th><th>In</th><th>Out</th><th>${cacheKnown ? "Cached" : "Cached*"}</th><th>Avg ms</th><th>Est</th><th>Err</th></tr></thead><tbody>${rows}</tbody></table>`
     : `<div class="empty">no calls in this range</div>`;
 
   document.getElementById("report").innerHTML =
-    `<div class="cards">${cards}</div>` +
+    `<div class="cards">${cardsHtml}</div>${caveat}` +
     `<section><h2>Daily in+out tokens</h2>${chart}</section>` +
     `<section><h2>Per model</h2>${table}</section>`;
 }
