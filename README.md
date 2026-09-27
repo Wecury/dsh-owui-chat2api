@@ -36,7 +36,9 @@ DeepSeek Harness (or any OpenAI-compatible client)
 - 🪟 Two mounts, one engine: the floating pill overlay **and** a right-sidebar
   dock tab (DSH Desktop 2.0.10+) — the tab docks beside your conversation
   instead of covering it; on older DSH versions you simply get the pill
-- 🧠 One-click model and reasoning-level sync (see [Reasoning effort](#reasoning-effort-))
+- 🧠 One-click model and reasoning-level sync (see [Reasoning effort](#reasoning-effort-)) —
+  it also drops models you deleted in Open WebUI, so the list tracks the backend
+  instead of only ever growing
 - 📜 Process log with error highlighting, follow mode and copy
 - 🎨 Color-coded sections with inline Tabler icons that follow the DSH theme
   (dark / light), zero external requests
@@ -151,7 +153,9 @@ so DSH's model picker can show **Off / Low / Medium / High**.
 The easiest way is the **Sync models & reasoning levels** button in the
 Configuration section: it probes your models, declares the supported level for
 each, and writes a backup first. When your backend gains a model, click it
-again — already-probed models hit the cache.
+again — already-probed models hit the cache. Models you deleted in Open WebUI are
+dropped from `settings.yaml` on the next sync, so the list tracks the backend
+instead of only ever growing.
 
 For manual declaration or using `chat2api.py` standalone, see
 [DEVELOPMENT.md](DEVELOPMENT.md).

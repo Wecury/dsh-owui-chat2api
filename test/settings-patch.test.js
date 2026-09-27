@@ -9,7 +9,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { addModels, ensureProvider, addReasoningEfforts } from '../lib/settings-patch.js'
+import { addModels, ensureProvider, addReasoningEfforts, removeModels } from '../lib/settings-patch.js'
 
 const FIXTURE = [
   '# my settings - a comment that must survive every patch',
@@ -235,4 +235,113 @@ test('pipeline: ensureProvider + addModels + addReasoningEfforts re-run finds ev
   assert.equal(m2.code, 'NO_CHANGE')
   assert.equal(e2.code, 'NO_CHANGE')
   assert.deepEqual(e2.added, [])
+})
+
+// ---- removeModels: mirror of addModels for models deleted in Open WebUI ----
+
+test('removeModels: drops the ids the backend no longer serves, keeps the rest', () => {
+  const r = removeModels(FIXTURE, { baseUrl: 'http://localhost:8000/v1', keepIds: ['deepseek-chat'] })
+  assert.equal(r.ok, true)
+  assert.equal(r.code, 'CHANGED')
+  assert.deepEqual(r.removed, ['deepseek-reasoner'])
+  assert.ok(r.text.includes('- id: deepseek-chat'), 'surviving model kept')
+  assert.ok(!r.text.includes('deepseek-reasoner'), 'stale model gone')
+})
+
+test('removeModels: removes the whole item, including name and reasoningEfforts', () => {
+  const withEfforts = [
+    'llm-pi-ai:',
+    '  providers:',
+    '    local-owui:',
+    '      api: openai-completions',
+    '      baseURL: http://127.0.0.1:8000/v1',
+    '      models:',
+    '        - id: gone-model',
+    '          reasoningEfforts:',
+    '            off: null',
+    '            low: low',
+    '            medium: medium',
+    '            high: high',
+    '          name: gone-model',
+    '        - id: kept-model',
+    '          name: kept-model',
+    '',
+  ].join('\n')
+  const r = removeModels(withEfforts, { baseUrl: 'http://127.0.0.1:8000/v1', keepIds: ['kept-model'] })
+  assert.equal(r.code, 'CHANGED')
+  assert.deepEqual(r.removed, ['gone-model'])
+  assert.ok(!r.text.includes('gone-model'), 'no trace of the removed item')
+  assert.ok(!r.text.includes('reasoningEfforts'), 'its effort block went with it')
+  assert.ok(r.text.includes('        - id: kept-model\n          name: kept-model'), 'neighbour intact')
+})
+
+test('removeModels: never touches a models list of another provider', () => {
+  const r = removeModels(FIXTURE, { baseUrl: 'http://127.0.0.1:8000/v1', keepIds: ['deepseek-chat', 'deepseek-reasoner'] })
+  assert.equal(r.code, 'NO_CHANGE')
+  assert.deepEqual(r.removed, [])
+  assert.ok(r.text.includes('- id: gpt-x'), 'other provider untouched')
+})
+
+test('removeModels: refuses to prune against an empty model list', () => {
+  // An empty keepIds means "the backend serves nothing" - a failed probe, not a
+  // real state. Nothing may be deleted.
+  const r = removeModels(FIXTURE, { baseUrl: 'http://127.0.0.1:8000/v1', keepIds: [] })
+  assert.equal(r.ok, false)
+  assert.equal(r.code, 'NOOP')
+  assert.equal(r.text, FIXTURE, 'text returned unchanged')
+})
+
+test('removeModels: idempotent - a second run is NO_CHANGE', () => {
+  const first = removeModels(FIXTURE, { baseUrl: 'http://127.0.0.1:8000/v1', keepIds: ['deepseek-chat'] })
+  const second = removeModels(first.text, { baseUrl: 'http://127.0.0.1:8000/v1', keepIds: ['deepseek-chat'] })
+  assert.equal(second.code, 'NO_CHANGE')
+  assert.deepEqual(second.removed, [])
+})
+
+test('removeModels: keeps a comment that introduces the next item', () => {
+  const text = [
+    'llm-pi-ai:',
+    '  providers:',
+    '    local-owui:',
+    '      baseURL: http://127.0.0.1:8000/v1',
+    '      models:',
+    '        - id: stale',
+    '          name: stale',
+    '        # keep me: describes the model below',
+    '        - id: fresh',
+    '          name: fresh',
+    '',
+  ].join('\n')
+  const r = removeModels(text, { baseUrl: 'http://127.0.0.1:8000/v1', keepIds: ['fresh'] })
+  assert.equal(r.code, 'CHANGED')
+  assert.deepEqual(r.removed, ['stale'])
+  assert.ok(r.text.includes('        # keep me: describes the model below'), 'leading comment survives')
+  assert.ok(r.text.includes('- id: fresh'), 'next item survives')
+})
+
+test('removeModels: NO_PROVIDER when nothing points at the baseUrl', () => {
+  const r = removeModels(FIXTURE, { baseUrl: 'http://127.0.0.1:9999/v1', keepIds: ['deepseek-chat'] })
+  assert.equal(r.ok, false)
+  assert.equal(r.code, 'NO_PROVIDER')
+})
+
+test('removeModels: CRLF line endings are preserved', () => {
+  const crlf = FIXTURE.split('\n').join('\r\n')
+  const r = removeModels(crlf, { baseUrl: 'http://127.0.0.1:8000/v1', keepIds: ['deepseek-chat'] })
+  assert.equal(r.code, 'CHANGED')
+  assert.ok(r.text.includes('\r\n'), 'still CRLF')
+  assert.ok(!r.text.includes('deepseek-reasoner'))
+})
+
+test('pipeline: addModels then removeModels round-trips a model rename', () => {
+  const proxyUrl = 'http://127.0.0.1:8000/v1'
+  // The backend renamed deepseek-reasoner to deepseek-reasoner-v2.
+  const renamed = ['deepseek-chat', 'deepseek-reasoner-v2']
+  const pruned = removeModels(FIXTURE, { baseUrl: proxyUrl, keepIds: renamed })
+  assert.deepEqual(pruned.removed, ['deepseek-reasoner'])
+  const added = addModels(pruned.text, { baseUrl: proxyUrl, modelIds: renamed })
+  assert.deepEqual(added.added, ['deepseek-reasoner-v2'])
+  // Re-running both is a no-op: the file now tracks the backend exactly.
+  assert.equal(removeModels(added.text, { baseUrl: proxyUrl, keepIds: renamed }).code, 'NO_CHANGE')
+  assert.equal(addModels(added.text, { baseUrl: proxyUrl, modelIds: renamed }).code, 'NO_CHANGE')
 })

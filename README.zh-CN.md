@@ -34,7 +34,8 @@ DeepSeek Harness（或任何 OpenAI 兼容客户端）
   估算调用与失败调用也会单独标出
 - 🪟 一套引擎两种挂载：悬浮 pill 面板 + **右侧栏停靠标签页**（DSH Desktop
   2.0.10+）——标签页停在会话旁边，不会盖住会话；旧版 DSH 自动只有 pill
-- 🧠 一键同步模型与推理等级（见[推理等级](#推理等级-)）
+- 🧠 一键同步模型与推理等级（见[推理等级](#推理等级-)）——会一并移除你在
+  Open WebUI 中删掉的模型，列表跟随后端而不是只增不减
 - 📜 进程日志：错误高亮、跟随最新、一键复制
 - 🎨 分区配色 + 内联 Tabler 图标，跟随 DSH 深浅主题，零外部请求
 
@@ -140,7 +141,8 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.0
 
 最省事：在面板配置区点一次 **Sync models & reasoning levels**。它会自动探测
 模型、给支持推理的模型声明好等级，并且先写一份备份。以后后端上了新模型再
-点一次即可（已探测过的会走缓存）。
+点一次即可（已探测过的会走缓存）。你在 Open WebUI 里删掉的模型，下次同步
+会从 `settings.yaml` 里移除，列表跟随后端而不是只增不减。
 
 想手动声明，或独立使用 `chat2api.py`，见 [DEVELOPMENT.md](DEVELOPMENT.md)。
 
