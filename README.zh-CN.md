@@ -85,17 +85,17 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.0
    已存在（旧 junction），先用 `cmd /c rmdir "<该路径>"` 删掉链接，让新的
    `link:` 依赖解析到新目录，而不是指向残留的旧目标。
 
-3. 在 `%USERPROFILE%\.dsh\profiles\<desktop|web>\package.json` 里注册
-   （DSH Desktop 用 `desktop`，原版 web 界面用 `web`）：
+3. 交给插件管理器注册这个目录——profile 的 `package.json`（`link:` 依赖 +
+   `dsh.profile.bundles`）由它自己写，不用你手改（DSH Desktop 用 `desktop`，
+   原版 web 界面用 `web`）：
 
-   ```jsonc
-   "dependencies": {
-     "dsh-owui-chat2api": "link:%USERPROFILE%\\.dsh\\plugins\\dsh-owui-chat2api-0.10.0"
-   },
-   "dsh": { "profile": { "bundles": [ /* ... */ "dsh-owui-chat2api" ] } }
+   ```powershell
+   dsh plugin --profile desktop add link:%USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-0.10.0
    ```
 
-   版本号、文件夹名换成你实际下载的版本即可。
+   版本号、文件夹名换成你实际下载的版本即可。手改 profile 的 `package.json`
+   也能用，但那个文件现在归插件管理器：它会在下一次安装/卸载时按自己的记录
+   reconcile，把不是它写的行回滚掉（曾经因此把另一个插件降回旧版本 pin）。
 
 ### 🤖 方式 C —— 直接喊你的 DSH 装
 

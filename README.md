@@ -95,17 +95,18 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.0
    `cmd /c rmdir "<that path>"` — so the new `link:` dependency resolves to
    the new folder instead of a stale target.
 
-3. Register it in `%USERPROFILE%\.dsh\profiles\<desktop|web>\package.json`
-   (`desktop` for DSH Desktop, `web` for the stock web UI):
+3. Register the unpacked folder with the plugin manager — it writes the profile
+   `package.json` (`link:` dependency + `dsh.profile.bundles`) itself, so you do not
+   have to hand-edit it (`desktop` for DSH Desktop, `web` for the stock web UI):
 
-   ```jsonc
-   "dependencies": {
-     "dsh-owui-chat2api": "link:%USERPROFILE%\\.dsh\\plugins\\dsh-owui-chat2api-0.10.0"
-   },
-   "dsh": { "profile": { "bundles": [ /* ... */ "dsh-owui-chat2api" ] } }
+   ```powershell
+   dsh plugin --profile desktop add link:%USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-0.10.0
    ```
 
-   Match the folder name to the version you downloaded.
+   Match the folder name to the version you downloaded. Hand-editing the profile
+   `package.json` also works, but the manager owns that file now: it reconciles the
+   profile against its own records on the next install or remove, and can revert rows
+   it did not write (that is how another bundle once fell back to a stale pin).
 
 ### 🤖 Option C — let your DSH install it
 

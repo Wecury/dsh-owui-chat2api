@@ -11,7 +11,10 @@
 - `lib/proxy-process.js` —— `chat2api.py` 子进程生命周期：proxy 启停、登录
   流程与结果记账、进程日志尾部、python 子进程的 env 白名单。
 - `lib/effort-scan.js` —— 一键扫描后端模型，把模型 + `reasoningEfforts`
-  写入 `~/.dsh/settings.yaml`（自动备份、写后自验证）。
+  写入 `~/.dsh/settings.yaml`（自动备份、写后自验证）。档位是**逐个探测**出来的：
+  后端对 `reasoning_effort` 的接受与否不是区间（DeepSeek V4.1 收
+  low/high/xhigh/max 但拒 medium，Qwen3.8-27B 收 xhigh 却拒 high），声明了
+  后端不认的档位，一选就是 HTTP 400。
 - `lib/prices.js` —— 手动价格表（每百万 tokens、单一货币符号），host 在
   `/api/usage` 上叠加逐模型成本；未填价的模型只统计、不计费。
 - `lib/panel.js` —— **CLIENT** 半区：注入 DSH 网页壳的 Vanilla JS 面板逻辑
@@ -30,11 +33,17 @@
 - `chat2api/token.json`、`usage.db`、`.chrome-profile/` —— **运行期产物**，
   绝不允许进入提交或发布物。
 
-## 目录布局（安装副本）
+## 目录布局（仓库 = 安装源）
+
+DSH 0.2 起插件由 **plugin manager** 安装：它把仓库**链接**进 profile（依赖写成
+`link:<repo>`），并自己维护 profile 的 `package.json`、`node_modules` 与
+`dsh.profile.bundles`。所以下面这棵树**就是**运行时读到的那棵树，没有"安装副本"
+这一步（旧流程的 `~/.dsh/plugins/dsh-owui-chat2api-<version>` 拷贝已废弃）：
 
 ```
-~/.dsh/plugins/dsh-owui-chat2api-<version>/
+<repo>/
   package.json        name: dsh-owui-chat2api, dsh.bundle.patch -> cordis.patch.yml
+  client.js           esbuild 产物：DSH 网页壳加载的 CLIENT 入口（npm run build 生成）
   cordis.patch.yml    把插件行插入 profile 的组合文件
   lib/index.js        HOST：路由 / tapIndex / autostart（接线层）
   lib/config.js       HOST：控制文件配置 + 共享路径
@@ -42,14 +51,13 @@
   lib/proxy-process.js  HOST：子进程生命周期 / env 白名单 / 日志尾部 / 登录记账
   lib/effort-scan.js  HOST：模型与 reasoningEfforts 写入 settings.yaml
   lib/prices.js       HOST：手动价格表 + 逐模型成本估算
-  lib/panel.js        CLIENT：自包含控制面板（逻辑）
+  lib/panel.js        CLIENT：自包含控制面板（逻辑，内联进 client.js）
   lib/panel-i18n.js   CLIENT：面板中英字典（先于 panel.js 注入）
   lib/panel.css       CLIENT：面板样式（/panel.css 提供）
   lib/settings-patch.js   settings.yaml 文本补丁器
-  chat2api/           chat2api.py + owui_usage.py + dashboard.html + requirements.txt（.chrome-profile 运行期才有）
+  chat2api/           chat2api.py + owui_usage.py + dashboard.html + requirements.txt
+  test/ scripts/      仅开发用，不进 npm 发布包（files 白名单 + .npmignore）
 ```
-
-（`test/` 只在仓库里，不进安装副本。）
 
 ## 运行期数据放哪
 
@@ -61,6 +69,25 @@
   `token.json` 迁移过来）。
 - 价格表：`<DSH_HOME>/dsh-owui-chat2api-prices.json`——每模型
   `{input, cached, output}` 单价（每百万 tokens）+ 货币符号，面板可直接编辑。
+
+## settings.yaml 与新版 DSH（重要）
+
+`lib/settings-patch.js` 写的是 `<DSH_HOME>/settings.yaml`，但 **DSH 0.2 起不再
+直接读这个文件**：启动时它把该文件按 section **深合并**进当前 profile 的
+`profiles/<name>/cordis.patch.yml`，然后把文件改名成 `settings.yaml.imported`。
+由此：
+
+- 文件通常**不存在**（已经导入过了），这不是错误：`effort-scan.js` 把 ENOENT 当
+  "空文档"从零开始（`ensureProvider` 会把整条链建出来），并且不写备份（没东西可
+  备份）；其它读错误仍然中止扫描。
+- 面板上"重启 DSH 生效"是字面意思：扫描只是写了 settings.yaml，真正的合并发生
+  在下一次启动。
+- 深合并对**普通对象递归、对数组整体替换**——所以 `models:` 列表是整体替换而不是
+  合并，这正是"同步会移除后端已不提供的模型"能生效的原因。
+- 反过来，`m365` 等其它 provider 不受影响：我们的文件里没有它们的 section，合并
+  时保持原样。
+- `reasoningEfforts` 的值只能是**字符串或 null**（`off: null` = 不发这个参数），
+  所以映射不出整数档位（后端收 1–100，DSH 侧只能声明命名档位）。
 
 ## 路由（同源）
 
@@ -97,45 +124,61 @@ CORS 问题。
 - 面板的**一切动作反馈都走吸顶 `.ow-notice`**（`setBanner`），不要另起一套
   内联提示。
 
-## 本地测试你的改动（源码 → 安装副本）
+## 安装 / 更新
 
-仓库是**唯一真源（source of truth）**。DSH 真正跑的是
-`~/.dsh/plugins/dsh-owui-chat2api-<version>` 的安装副本（活的 `.chrome-profile`
-也在这里，**绝不能提交**）。改完代码，把改动装进安装副本：
+仓库是**唯一真源（source of truth）**：`link:` 安装让 DSH 直接读这棵工作树，
+所以改完代码**没有"拷进安装目录"这一步**。首次安装（或换机器）：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\pack.ps1          # 用 package.json 的当前版本
-powershell -ExecutionPolicy Bypass -File scripts\pack.ps1 -Version 0.8.0   # 或指定版本
+dsh plugin --profile desktop add link:D:/Files/dsh-owui-chat2api
 ```
 
-脚本用 `robocopy /MIR` 组装到 `~/.dsh/plugins/dsh-owui-chat2api-<version>`，
-然后**自动重链**：重建 junction（版本号变了才需要）、把 profile
-`package.json` 的依赖改成 `link:<新目录>`（保留原格式，强制 UTF-8 **无 BOM**
-写回——DSH 的 JSON 解析器不认 BOM）。它**按构造排除** `.chrome-profile/`、
-`usage.db`、`token.json`、`__pycache__`、`.git` 与构建噪声——`/MIR` 不会删除
-目标根目录，也不碰 `/XD` 排除的目录，所以代理正在跑时也能安全重打包，不会
-误删在线登录态。
+GUI 插件管理里的 install bundle 填这个仓库的绝对路径也是同一件事（本机就是这么
+装的）。装完 profile 的 `package.json` 会多一行
+`"dsh-owui-chat2api": "link:D:/Files/dsh-owui-chat2api"`，`dsh.profile.bundles`
+里多一项。
 
-所以本地实测循环就两步：
+**不要手改** profile 的 `package.json` / `node_modules` / `pnpm-lock.yaml`：这些
+归 plugin manager，手写的状态会在下一次安装或卸载时被它按自己的记录 reconcile 掉
+（曾经因此把 dshmarket 从 1.66.5 降回旧的 1.47.0 pin，被 DSH 的 peer 检查拒绝）。
 
-1. `powershell -ExecutionPolicy Bypass -File scripts\pack.ps1`
-2. 重启 DSH Desktop
+## 本地测试你的改动
 
-重启 DSH 后 `lib/*` 生效；**只改了 `chat2api.py` 不用重启**（它每次 spawn 都从
-磁盘读）。
+```powershell
+npm run build                                              # 只重建 client.js
+powershell -ExecutionPolicy Bypass -File scripts\pack.ps1     # 重建 + 出发布 tgz
+```
+
+`scripts\pack.ps1` 现在只做 manager 做不了的两件事：重建 `client.js`（esbuild
+产物，DSH 网页壳加载的是它，不是 `lib/panel.js`）和 `npm pack`；末尾会打印每个
+profile 当前链接到哪里，方便确认 DSH 跑的是这棵树而不是旧副本。
+
+生效范围：
+
+| 改动 | 生效方式 |
+| --- | --- |
+| `lib/*.js`（HOST 半区） | 重启 DSH |
+| `lib/panel*.js` / `client.js`（CLIENT 半区） | `npm run build` + 重启 DSH（`pnpm run dev:web` 在跑时可热更新） |
+| `chat2api/*.py` | **不用重启 DSH**，但要重启代理（面板 Stop → Start）：python 是长驻子进程 |
+
+HOST 侧的面板资源在启动时读入 `panelAssetCache`，所以改了 `lib/panel.js` 即使
+不重建 client.js，也要等 DSH 重启才生效。
 
 ## 测试
 
-- `npm test`（即 `node --test test/settings-patch.test.js`）——覆盖
-  `lib/settings-patch.js` 的全部行为：effort 块插入位置与缩进、幂等
-  （二次运行 `NO_CHANGE`）、CRLF 检测与保持、注释/无关 provider 字节级保留、
-  `NO_PROVIDER`/`NOOP` 失败路径、空 `models:` 列表、`ensureProvider` 全链创建
-  与重名避让（`chat2api-1`），以及 effort-scan "写后自验证"依赖的
-  **三轮 round-trip 不变量**（create → patch → 再跑一遍全部报 already）。
+- `npm test`（即 `node --test test/`）——两个文件：
+  - `test/settings-patch.test.js`：`lib/settings-patch.js` 的全部行为——effort 块的
+    插入位置与缩进、**按验证档位生成映射**（只写后端接受的档位）、**漂移映射的
+    就地修复**（去掉被拒档位、补上缺失档位、保留重命名拼写如 `max: ultra`）、
+    `reasoningEfforts: false` 被替换、旧调用方 `modelIds` 只声明探测过的 `high`、
+    幂等（二次运行 `NO_CHANGE`）、CRLF 检测与保持、注释/无关 provider 字节级
+    保留、`NO_PROVIDER`/`NOOP` 失败路径、空 `models:` 列表、`ensureProvider`
+    全链创建与重名避让（`chat2api-1`），以及 effort-scan "写后自验证"依赖的
+    **三轮 round-trip 不变量**（create → patch → 再跑一遍全部报 already）。
+  - `test/prices.test.js`：价格表读写、逐模型成本公式、cached 夹取与未定价模型。
 - settings.yaml 是用户的核心配置，**改 `settings-patch.js` 必须先跑测试**；
   新增行为先加测试再改实现。
-- `test/` 是纯开发工件：不进 npm 发布（`files` 白名单不含），也不进打包
-  副本（pack.ps1 `/XD` 排除）。
+- `test/` 是纯开发工件：不进 npm 发布包（`files` 白名单 + `.npmignore`）。
 
 ## 备注
 
@@ -144,3 +187,7 @@ powershell -ExecutionPolicy Bypass -File scripts\pack.ps1 -Version 0.8.0   # 或
 - 如果 DSH 的 agent 会话本身走这条代理，停掉它会把当前聊天打断——控件已有
   保护，这必须是有意的操作。
 - `scripts/pack.ps1` 是 Windows 路径；如需 mac/linux，加一个对等脚本。
+- 控制文件里的 `chat2apiDir` 决定**实际跑哪份 python**。旧流程留下的值会指向
+  `~/.dsh/plugins/dsh-owui-chat2api-<version>/chat2api`（已废弃的安装副本），
+  那样代理和面板扫描都还在跑旧代码——把它改成这棵仓库的 `chat2api/` 才会用到当前
+  代码（改完要重启代理：面板 Stop → Start；**不用**重启 DSH）。
