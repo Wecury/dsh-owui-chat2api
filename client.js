@@ -74,6 +74,7 @@ function createPanelInstance(opts) {
       effortScanModelsAlready: "models already present:",
       effortScanRemoved: "Removed (no longer in Open WebUI):",
       effortScanProviderCreated: "Auto-created provider:",
+      effortScanSettingsCreated: "Created ~/.dsh/settings.yaml (DSH merges it into the profile on the next start).",
       effortScanDone: "Nothing to change.",
       effortScanRestart: " - restart DSH to apply.",
       usage: "Usage",
@@ -167,6 +168,7 @@ function createPanelInstance(opts) {
       effortScanModelsAlready: "模型已存在:",
       effortScanRemoved: "已移除（Open WebUI 中已不存在）:",
       effortScanProviderCreated: "已自动创建模型提供方:",
+      effortScanSettingsCreated: "已新建 ~/.dsh/settings.yaml（DSH 下次启动时合并进 profile）。",
       effortScanDone: "无需改动。",
       effortScanRestart: " - 重启 DSH 生效。",
       usage: "用量",
@@ -610,6 +612,7 @@ function createPanelInstance(opts) {
   function announceScanResult(res) {
     var bits = [];
     if (res.providerCreated) bits.push(t("effortScanProviderCreated") + " " + (res.providerName || ""));
+    if (res.settingsCreated) bits.push(t("effortScanSettingsCreated"));
     if (res.modelsRemoved && res.modelsRemoved.length) bits.push(t("effortScanRemoved") + " " + res.modelsRemoved.join(", "));
     if (res.modelsAdded && res.modelsAdded.length) bits.push(t("effortScanModelsAdded") + " " + res.modelsAdded.join(", "));
     if (res.modelsAlready && res.modelsAlready.length) bits.push(t("effortScanModelsAlready") + " " + res.modelsAlready.join(", "));
