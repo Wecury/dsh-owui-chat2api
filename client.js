@@ -62,12 +62,14 @@ function createPanelInstance(opts) {
       save: "Save",
       saved: "Saved",
       effortScan: "Sync models & reasoning levels",
-      effortScanHint: "Discovers models through the proxy, adds any missing ones plus reasoningEfforts into ~/.dsh/settings.yaml (backed up first), and drops models deleted in Open WebUI. Restart DSH to apply.",
+      effortScanHint: "Discovers models through the proxy, probes every reasoning level, and declares only the levels each model accepts into ~/.dsh/settings.yaml (backed up first). Also drops models deleted in Open WebUI. Restart DSH to apply.",
       effortRescan: "Force re-scan",
       effortRescanHint: "Ignore cached probe results and re-probe every model - use after the backend gains or renames models.",
       effortScanPatched: "Patched:",
       effortScanAlready: "already:",
       effortScanSkipped: "not in a matched provider:",
+      effortScanRepaired: "Levels corrected:",
+      effortScanLevels: "Levels:",
       effortScanModelsAdded: "Models added:",
       effortScanModelsAlready: "models already present:",
       effortScanRemoved: "Removed (no longer in Open WebUI):",
@@ -153,12 +155,14 @@ function createPanelInstance(opts) {
       save: "保存",
       saved: "已保存",
       effortScan: "一键同步模型与推理等级",
-      effortScanHint: "扫描后端模型,把缺失的模型和 reasoningEfforts 写入 ~/.dsh/settings.yaml(自动备份),并把 Open WebUI 中已删除的模型从列表移除。重启 DSH 生效。",
+      effortScanHint: "扫描后端模型,逐个档位探测每个模型能接受的 reasoning_effort,只声明真正被接受的档位,写入 ~/.dsh/settings.yaml(自动备份),并把 Open WebUI 中已删除的模型从列表移除。重启 DSH 生效。",
       effortRescan: "强制重扫",
       effortRescanHint: "忽略缓存,重新探测所有模型 - 后端新增或改名模型后使用。",
       effortScanPatched: "已写入:",
       effortScanAlready: "已有:",
       effortScanSkipped: "不在匹配的 provider 列表:",
+      effortScanRepaired: "已修正等级:",
+      effortScanLevels: "推理等级:",
       effortScanModelsAdded: "已添加模型:",
       effortScanModelsAlready: "模型已存在:",
       effortScanRemoved: "已移除（Open WebUI 中已不存在）:",
@@ -610,8 +614,15 @@ function createPanelInstance(opts) {
     if (res.modelsAdded && res.modelsAdded.length) bits.push(t("effortScanModelsAdded") + " " + res.modelsAdded.join(", "));
     if (res.modelsAlready && res.modelsAlready.length) bits.push(t("effortScanModelsAlready") + " " + res.modelsAlready.join(", "));
     if (res.added && res.added.length) bits.push(t("effortScanPatched") + " " + res.added.join(", "));
+    if (res.repaired && res.repaired.length) bits.push(t("effortScanRepaired") + " " + res.repaired.join(", "));
     if (res.already && res.already.length) bits.push(t("effortScanAlready") + " " + res.already.join(", "));
     if (res.skipped && res.skipped.length) bits.push(t("effortScanSkipped") + " " + res.skipped.join(", "));
+    if (res.levels) {
+      var lv = Object.keys(res.levels).map(function(m) {
+        return m + "=" + res.levels[m].join("/");
+      });
+      if (lv.length) bits.push(t("effortScanLevels") + " " + lv.join("; "));
+    }
     var done = bits.length ? bits.join("\n") + (res.changed ? t("effortScanRestart") : "") : t("effortScanDone");
     setBanner(done, res.verify ? "warn" : res.changed ? "ok" : "info");
   }

@@ -36,41 +36,124 @@ const FIXTURE = [
 
 // ---- addReasoningEfforts ----
 
-test('addReasoningEfforts: adds effort block under matching provider models', () => {
-  const r = addReasoningEfforts(FIXTURE, { baseUrl: 'http://localhost:8000/v1', modelIds: ['deepseek-chat', 'deepseek-reasoner'] })
+test('addReasoningEfforts: adds a mapping with exactly the verified levels', () => {
+  const r = addReasoningEfforts(FIXTURE, {
+    baseUrl: 'http://localhost:8000/v1',
+    models: { 'deepseek-chat': ['low', 'high'], 'deepseek-reasoner': ['low', 'medium', 'high'] },
+  })
   assert.equal(r.ok, true)
   assert.equal(r.code, 'CHANGED')
   assert.deepEqual(r.added.sort(), ['deepseek-chat', 'deepseek-reasoner'])
   assert.deepEqual(r.skipped, [])
+  assert.deepEqual(r.repaired, [])
   // Effort block sits at the same level as `name:` (item indent + 2 = 10).
   assert.ok(r.text.includes('          reasoningEfforts:'), 'effort key line present')
   assert.ok(r.text.includes('            off: null'), 'effort sub-key present')
   // It is spliced right after the `- id:` line, still inside the same list
   // item mapping (before `name:`) - valid YAML either way.
   assert.ok(
-    /- id: deepseek-chat\n          reasoningEfforts:\n            off: null\n            low: low\n            medium: medium\n            high: high\n          name: deepseek-chat/.test(r.text),
+    /- id: deepseek-chat\n          reasoningEfforts:\n            off: null\n            low: low\n            high: high\n          name: deepseek-chat/.test(r.text),
     'effort block lands inside the deepseek-chat item'
   )
+  // Levels are per model: no "medium" for a backend that rejects it.
+  assert.ok(
+    /- id: deepseek-reasoner\n          reasoningEfforts:\n            off: null\n            low: low\n            medium: medium\n            high: high\n          name: deepseek-reasoner/.test(r.text),
+    'each model gets its own levels'
+  )
+})
+
+test('addReasoningEfforts: a model that takes no level gets no mapping', () => {
+  // DSH rejects an off-only mapping, so a backend that takes nothing must not
+  // get one - the model simply offers no thinking level.
+  const r = addReasoningEfforts(FIXTURE, { baseUrl: 'http://127.0.0.1:8000/v1', models: { 'deepseek-chat': [] } })
+  assert.equal(r.ok, false)
+  assert.equal(r.code, 'NOOP')
+  assert.equal(r.text, FIXTURE, 'input untouched')
+})
+
+test('addReasoningEfforts: repairs a mapping that declares a rejected level', () => {
+  // The regression: a stale low/medium/high block kept offering "medium" to a
+  // backend (DeepSeek V4.1) that answers HTTP 400 on it.
+  const stale = FIXTURE.replace(
+    '- id: deepseek-chat\n          name: deepseek-chat',
+    '- id: deepseek-chat\n          reasoningEfforts:\n            off: null\n            low: low\n            medium: medium\n            high: high\n          name: deepseek-chat'
+  )
+  const r = addReasoningEfforts(stale, {
+    baseUrl: 'http://127.0.0.1:8000/v1',
+    models: { 'deepseek-chat': ['low', 'high', 'xhigh', 'max'] },
+  })
+  assert.equal(r.code, 'CHANGED')
+  assert.deepEqual(r.repaired, ['deepseek-chat'])
+  assert.deepEqual(r.added, [])
+  assert.deepEqual(r.already, [])
+  assert.ok(!r.text.includes('medium: medium'), 'rejected level is gone')
+  assert.ok(r.text.includes('            xhigh: xhigh'), 'new level is declared')
+  assert.ok(r.text.includes('          name: deepseek-chat'), 'siblings survive')
+  // And the repair is idempotent.
+  const again = addReasoningEfforts(r.text, {
+    baseUrl: 'http://127.0.0.1:8000/v1',
+    models: { 'deepseek-chat': ['low', 'high', 'xhigh', 'max'] },
+  })
+  assert.equal(again.code, 'NO_CHANGE')
+  assert.deepEqual(again.already, ['deepseek-chat'])
+  assert.deepEqual(again.repaired, [])
+})
+
+test('addReasoningEfforts: a renamed wire spelling survives a repair', () => {
+  // A gateway may rename a level (`max: ultra`); repairing the set must keep it.
+  const custom = FIXTURE.replace(
+    '- id: deepseek-chat\n          name: deepseek-chat',
+    '- id: deepseek-chat\n          reasoningEfforts:\n            off: null\n            low: low\n            medium: medium\n            max: ultra\n          name: deepseek-chat'
+  )
+  const r = addReasoningEfforts(custom, { baseUrl: 'http://127.0.0.1:8000/v1', models: { 'deepseek-chat': ['low', 'max'] } })
+  assert.equal(r.code, 'CHANGED')
+  assert.ok(r.text.includes('            max: ultra'), 'custom spelling preserved')
+  assert.ok(!r.text.includes('medium: medium'), 'rejected level dropped')
+})
+
+test('addReasoningEfforts: reasoningEfforts: false is replaced by the mapping', () => {
+  const off = FIXTURE.replace(
+    '- id: deepseek-chat\n          name: deepseek-chat',
+    '- id: deepseek-chat\n          reasoningEfforts: false\n          name: deepseek-chat'
+  )
+  const r = addReasoningEfforts(off, { baseUrl: 'http://127.0.0.1:8000/v1', models: { 'deepseek-chat': ['high'] } })
+  assert.equal(r.code, 'CHANGED')
+  assert.ok(!r.text.includes('reasoningEfforts: false'), 'scalar form replaced')
+  assert.ok(/reasoningEfforts:\n            off: null\n            high: high/.test(r.text), 'block form written')
+})
+
+test('addReasoningEfforts: legacy modelIds only claim the probed level (high)', () => {
+  // A pre-0.10.2 scan probed the single spelling "high", so that is all a
+  // legacy caller may declare - never a level nobody verified.
+  const r = addReasoningEfforts(FIXTURE, { baseUrl: 'http://localhost:8000/v1', modelIds: ['deepseek-chat'] })
+  assert.equal(r.code, 'CHANGED')
+  assert.ok(
+    /- id: deepseek-chat\n          reasoningEfforts:\n            off: null\n            high: high\n          name: deepseek-chat/.test(r.text),
+    'only the verified level is declared'
+  )
+  assert.ok(!r.text.includes('medium: medium'))
 })
 
 test('addReasoningEfforts: localhost normalises to 127.0.0.1 (hostKey match)', () => {
   // Fixture declares 127.0.0.1; patching by localhost:8000 must still match.
-  const r = addReasoningEfforts(FIXTURE, { baseUrl: 'http://localhost:8000/v1', modelIds: ['deepseek-chat'] })
+  const r = addReasoningEfforts(FIXTURE, { baseUrl: 'http://localhost:8000/v1', models: { 'deepseek-chat': ['high'] } })
   assert.equal(r.code, 'CHANGED')
 })
 
 test('addReasoningEfforts: idempotent - second run is NO_CHANGE and reports already', () => {
-  const first = addReasoningEfforts(FIXTURE, { baseUrl: 'http://127.0.0.1:8000/v1', modelIds: ['deepseek-chat'] })
+  const patch = { baseUrl: 'http://127.0.0.1:8000/v1', models: { 'deepseek-chat': ['low', 'high'] } }
+  const first = addReasoningEfforts(FIXTURE, patch)
   assert.equal(first.code, 'CHANGED')
-  const second = addReasoningEfforts(first.text, { baseUrl: 'http://127.0.0.1:8000/v1', modelIds: ['deepseek-chat'] })
+  const second = addReasoningEfforts(first.text, patch)
   assert.equal(second.ok, true)
   assert.equal(second.code, 'NO_CHANGE')
   assert.deepEqual(second.added, [])
+  assert.deepEqual(second.repaired, [])
   assert.deepEqual(second.already, ['deepseek-chat'])
 })
 
 test('addReasoningEfforts: preserves comments, ordering and unrelated providers byte-for-byte', () => {
-  const r = addReasoningEfforts(FIXTURE, { baseUrl: 'http://127.0.0.1:8000/v1', modelIds: ['deepseek-chat'] })
+  const r = addReasoningEfforts(FIXTURE, { baseUrl: 'http://127.0.0.1:8000/v1', models: { 'deepseek-chat': ['high'] } })
   const lines = r.text.split('\n')
   assert.equal(lines[0], '# my settings - a comment that must survive every patch')
   assert.ok(r.text.includes('baseURL: http://127.0.0.1:8000/v1  # the local proxy'), 'inline comment preserved')
@@ -81,7 +164,7 @@ test('addReasoningEfforts: preserves comments, ordering and unrelated providers 
 })
 
 test('addReasoningEfforts: models absent from settings are reported as skipped', () => {
-  const r = addReasoningEfforts(FIXTURE, { baseUrl: 'http://127.0.0.1:8000/v1', modelIds: ['deepseek-chat', 'not-declared'] })
+  const r = addReasoningEfforts(FIXTURE, { baseUrl: 'http://127.0.0.1:8000/v1', models: { 'deepseek-chat': ['high'], 'not-declared': ['high'] } })
   assert.equal(r.ok, true)
   assert.deepEqual(r.added, ['deepseek-chat'])
   assert.deepEqual(r.skipped, ['not-declared'])
@@ -89,26 +172,26 @@ test('addReasoningEfforts: models absent from settings are reported as skipped',
 })
 
 test('addReasoningEfforts: explicit provider name match', () => {
-  const r = addReasoningEfforts(FIXTURE, { provider: 'local-owui', modelIds: ['deepseek-chat'] })
+  const r = addReasoningEfforts(FIXTURE, { provider: 'local-owui', models: { 'deepseek-chat': ['high'] } })
   assert.equal(r.code, 'CHANGED')
 })
 
 test('addReasoningEfforts: NO_PROVIDER when nothing points at the baseUrl', () => {
-  const r = addReasoningEfforts(FIXTURE, { baseUrl: 'http://10.0.0.9:1234/v1', modelIds: ['deepseek-chat'] })
+  const r = addReasoningEfforts(FIXTURE, { baseUrl: 'http://10.0.0.9:1234/v1', models: { 'deepseek-chat': ['high'] } })
   assert.equal(r.ok, false)
   assert.equal(r.code, 'NO_PROVIDER')
   assert.equal(r.text, FIXTURE, 'input text untouched on failure')
 })
 
-test('addReasoningEfforts: NOOP on empty model list', () => {
-  const r = addReasoningEfforts(FIXTURE, { baseUrl: 'http://127.0.0.1:8000/v1', modelIds: [] })
+test('addReasoningEfforts: NOOP on an empty model map', () => {
+  const r = addReasoningEfforts(FIXTURE, { baseUrl: 'http://127.0.0.1:8000/v1', models: {} })
   assert.equal(r.ok, false)
   assert.equal(r.code, 'NOOP')
 })
 
 test('addReasoningEfforts: CRLF line endings are detected and preserved', () => {
   const crlf = FIXTURE.replace(/\n/g, '\r\n')
-  const r = addReasoningEfforts(crlf, { baseUrl: 'http://127.0.0.1:8000/v1', modelIds: ['deepseek-chat'] })
+  const r = addReasoningEfforts(crlf, { baseUrl: 'http://127.0.0.1:8000/v1', models: { 'deepseek-chat': ['high'] } })
   assert.equal(r.code, 'CHANGED')
   assert.ok(!r.text.includes('\r\n\n'), 'no mixed endings introduced')
   assert.equal(r.text.split('\r\n').length, r.text.split('\n').length, 'every newline is CRLF')
@@ -212,7 +295,7 @@ test('ensureProvider: picks a free name when the default is taken', () => {
 test('pipeline: ensureProvider + addModels + addReasoningEfforts re-run finds everything already present', () => {
   const proxyUrl = 'http://127.0.0.1:8000/v1'
   const allModels = ['deepseek-chat', 'deepseek-reasoner', 'deepseek-new']
-  const supported = ['deepseek-chat', 'deepseek-reasoner']
+  const levels = { 'deepseek-chat': ['low', 'high'], 'deepseek-reasoner': ['low', 'medium', 'high'] }
 
   // Round 1 on a fresh file (no provider at all yet).
   let text = FIXTURE
@@ -222,7 +305,7 @@ test('pipeline: ensureProvider + addModels + addReasoningEfforts re-run finds ev
   const m1 = addModels(text, { baseUrl: proxyUrl, modelIds: allModels })
   assert.equal(m1.code, 'CHANGED')
   text = m1.text
-  const e1 = addReasoningEfforts(text, { baseUrl: proxyUrl, modelIds: supported })
+  const e1 = addReasoningEfforts(text, { baseUrl: proxyUrl, models: levels })
   assert.equal(e1.code, 'CHANGED')
   text = e1.text
 
@@ -230,11 +313,12 @@ test('pipeline: ensureProvider + addModels + addReasoningEfforts re-run finds ev
   // must now report as already present, with zero further edits.
   const p2 = ensureProvider(text, { baseUrl: proxyUrl })
   const m2 = addModels(text, { baseUrl: proxyUrl, modelIds: allModels })
-  const e2 = addReasoningEfforts(text, { baseUrl: proxyUrl, modelIds: supported })
+  const e2 = addReasoningEfforts(text, { baseUrl: proxyUrl, models: levels })
   assert.equal(p2.code, 'EXISTS')
   assert.equal(m2.code, 'NO_CHANGE')
   assert.equal(e2.code, 'NO_CHANGE')
   assert.deepEqual(e2.added, [])
+  assert.deepEqual(e2.repaired, [])
 })
 
 // ---- removeModels: mirror of addModels for models deleted in Open WebUI ----

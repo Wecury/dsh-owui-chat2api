@@ -137,12 +137,15 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.0
 ## 推理等级 🧠
 
 推理模型（比如 vLLM 网关后面那种）支持 `reasoning_effort`，DSH 的模型选择器
-里对应有 **Off / Low / Medium / High** 四档。
+里就会出现该模型**真正接受**的那几档（`off` 表示完全不发这个参数）。
 
-最省事：在面板配置区点一次 **Sync models & reasoning levels**。它会自动探测
-模型、给支持推理的模型声明好等级，并且先写一份备份。以后后端上了新模型再
-点一次即可（已探测过的会走缓存）。你在 Open WebUI 里删掉的模型，下次同步
-会从 `settings.yaml` 里移除，列表跟随后端而不是只增不减。
+最省事：在面板配置区点一次 **Sync models & reasoning levels**。它会**逐个档位**
+探测每个后端模型、只声明真正被接受的档位，并且先写一份备份。这一点很关键：
+能否接受并不是连续的——DeepSeek V4.1 接受 low/high/xhigh/max 却拒绝 medium，
+Qwen3.8-27B 接受 xhigh 却拒绝 high，声明了后端不认的档位，一选就 400。以后
+后端上了新模型再点一次即可（已探测过的会走缓存），已经漂移的档位会被就地修正。
+你在 Open WebUI 里删掉的模型，下次同步会从 `settings.yaml` 里移除，列表跟随后端
+而不是只增不减。
 
 想手动声明，或独立使用 `chat2api.py`，见 [DEVELOPMENT.md](DEVELOPMENT.md)。
 

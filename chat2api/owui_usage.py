@@ -68,9 +68,10 @@ CREATE INDEX IF NOT EXISTS usage_ts_idx   ON usage(ts);
 CREATE INDEX IF NOT EXISTS usage_model_idx ON usage(model);
 CREATE TABLE IF NOT EXISTS effort_probe (
     model   TEXT PRIMARY KEY,
-    support INTEGER NOT NULL,          -- 1 = backend accepted reasoning_effort, 0 = rejected
+    support INTEGER NOT NULL,          -- 1 = backend took at least one level, 0 = rejected every one
     at      REAL    NOT NULL,          -- unix seconds of the probe
-    err     TEXT    NOT NULL DEFAULT ''
+    err     TEXT    NOT NULL DEFAULT '',
+    levels  TEXT    NOT NULL DEFAULT '' -- comma-separated accepted levels; '' = unknown
 );
 """
 
@@ -94,6 +95,14 @@ def _usage_init():
         if "cache_reported" not in cols:
             conn.execute(
                 "ALTER TABLE usage ADD COLUMN cache_reported INTEGER NOT NULL DEFAULT 0"
+            )
+        # Same treatment for the effort cache: rows written before 0.10.2 recorded
+        # only whether the single "high" probe passed, so '' marks their levels as
+        # unknown and the next scan re-probes that model level by level.
+        ecols = {r["name"] for r in conn.execute("PRAGMA table_info(effort_probe)")}
+        if "levels" not in ecols:
+            conn.execute(
+                "ALTER TABLE effort_probe ADD COLUMN levels TEXT NOT NULL DEFAULT ''"
             )
         conn.commit()
     finally:
@@ -153,14 +162,37 @@ def effort_cache_get(model: str) -> int | None:
         conn.close()
 
 
-def effort_cache_set(model: str, support: int, err: str = ""):
+def effort_levels_get(model: str) -> list[str] | None:
+    """Cached accepted reasoning levels for one model, or None when unknown.
+
+    [] means "probed, and the backend took no level at all". None means the
+    levels were never probed - there is no row, or the row predates 0.10.2 and
+    recorded only the single "high" probe - so the caller must probe them.
+    """
+    conn = _usage_db_connect()
+    try:
+        row = conn.execute("SELECT levels FROM effort_probe WHERE model = ?", (model,)).fetchone()
+    except Exception:
+        return None
+    finally:
+        conn.close()
+    if row is None:
+        return None
+    raw = row["levels"] or ""
+    if not raw:
+        return None
+    return [v for v in raw.split(",") if v]
+
+
+def effort_cache_set(model: str, support: int, err: str = "", levels=None):
     conn = _usage_db_connect()
     try:
         conn.execute(
-            "INSERT INTO effort_probe (model, support, at, err) VALUES (?,?,?,?) "
+            "INSERT INTO effort_probe (model, support, at, err, levels) VALUES (?,?,?,?,?) "
             "ON CONFLICT(model) DO UPDATE SET support = excluded.support, "
-            "at = excluded.at, err = excluded.err",
-            (model, 1 if support else 0, time.time(), (err or "")[:200]),
+            "at = excluded.at, err = excluded.err, levels = excluded.levels",
+            (model, 1 if support else 0, time.time(), (err or "")[:200],
+             ",".join(levels or [])),
         )
         conn.commit()
     except Exception:

@@ -53,7 +53,8 @@ import requests
 # sibling module (DSH addition) so this file stays close to upstream's
 # proxy core for diffing.
 from owui_usage import (SSE_DATA_RE, build_usage_row, effort_cache_get,
-                        effort_cache_set, extract_usage_block, usage_insert,
+                        effort_cache_set, effort_levels_get,
+                        extract_usage_block, usage_insert,
                         usage_query)
 
 
@@ -118,6 +119,13 @@ EFFORT_LEVELS = {
     "Medium": "medium",
     "High": "high",
 }
+
+# Every thinking level DSH can offer for a model, in escalation order ("off" is not
+# here: it means "send no reasoning_effort at all"). Each level is probed on its
+# own because acceptance is NOT monotonic - DeepSeek V4.1 takes low/high/xhigh/max
+# but rejects medium, and Qwen3.8-27B takes xhigh but rejects high - so declaring
+# a fixed low/medium/high set made the picker offer values the backend 400s on.
+EFFORT_PROBE_LEVELS = ("minimal", "low", "medium", "high", "xhigh", "max")
 
 CHROME_PATHS = [
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -437,7 +445,12 @@ class Proxy:
         # Append thinking-level virtual models for each registered base model.
         for base in EFFORT_MODELS:
             src = next((m for m in data["data"] if m.get("id") == base), None)
-            for suffix in EFFORT_LEVELS:
+            levels = effort_levels_get(base)
+            for suffix, value in EFFORT_LEVELS.items():
+                # Only expose a variant whose reasoning_effort the backend
+                # actually takes; an unprobed model keeps every variant.
+                if levels is not None and value not in levels:
+                    continue
                 vid = f"{base}-{suffix}"
                 if any(m.get("id") == vid for m in data["data"]):
                     continue
@@ -447,22 +460,39 @@ class Proxy:
                 data["data"].append(m)
         return data
 
-    def _probe_effort(self, model: str) -> tuple[bool, str]:
-        """Cheap max_tokens=1 request with reasoning_effort=high; True when the
+    def _probe_effort(self, model: str, value: str = "high") -> tuple[bool, str]:
+        """Cheap max_tokens=1 request with reasoning_effort=<value>; True when the
         backend answers 200. 'Accepts' may mean 'ignores' for some models - this
-        only filters out backends that would reject the parameter wholesale."""
+        only filters out the spellings the backend would reject outright."""
         try:
             r = self.call("POST", "/api/chat/completions", json={
                 "model": model,
                 "messages": [{"role": "user", "content": "p"}],
                 "max_tokens": 1,
-                "reasoning_effort": "high",
+                "reasoning_effort": value,
             }, timeout=45)
             if r.status_code == 200:
                 return True, ""
             return False, f"HTTP {r.status_code}: {r.text[:160]}"
         except Exception as e:
             return False, str(e)[:160]
+
+    def probe_effort_levels(self, model: str) -> tuple[list[str], str]:
+        """Probe every level DSH may offer and return the accepted ones.
+
+        Returns (accepted levels in escalation order, first rejection message).
+        Probing each level separately is the whole point: acceptance is not a range,
+        so a backend can take "high" and still reject "medium".
+        """
+        accepted: list[str] = []
+        first_err = ""
+        for value in EFFORT_PROBE_LEVELS:
+            ok, err = self._probe_effort(model, value)
+            if ok:
+                accepted.append(value)
+            elif not first_err:
+                first_err = err
+        return accepted, first_err
 
 
 def auto_probe_efforts(proxy: "Proxy", force: bool) -> list[str]:
@@ -483,40 +513,45 @@ def auto_probe_efforts(proxy: "Proxy", force: bool) -> list[str]:
     for m in base_ids:
         if m in EFFORT_MODELS:
             continue  # already registered manually
-        cached = None if force else effort_cache_get(m)
-        if cached == 1:
-            out.append(m)
-            continue
-        if cached == 0:
-            print(f"[auto-effort-probe] {m}: unsupported (cached)")
+        levels = None if force else effort_levels_get(m)
+        if levels is not None:
+            if levels:
+                out.append(m)
+            else:
+                print(f"[auto-effort-probe] {m}: unsupported (cached)")
             continue
         pending.append(m)
 
     from concurrent.futures import ThreadPoolExecutor
 
-    def probe(m: str) -> tuple[str, bool, str]:
-        ok, err = proxy._probe_effort(m)
-        effort_cache_set(m, 1 if ok else 0, err)
-        return m, ok, err
+    def probe(m: str) -> tuple[str, list[str], str]:
+        levels, err = proxy.probe_effort_levels(m)
+        effort_cache_set(m, 1 if levels else 0, err, levels)
+        return m, levels, err
 
     with ThreadPoolExecutor(max_workers=8) as ex:
-        for m, ok, err in ex.map(probe, pending):  # preserves input order
-            if ok:
+        for m, levels, err in ex.map(probe, pending):  # preserves input order
+            if levels:
                 out.append(m)
-                print(f"[auto-effort-probe] {m}: accepts reasoning_effort -> variants exposed")
+                print(f"[auto-effort-probe] {m}: accepts {', '.join(levels)} "
+                      f"-> variants exposed")
             else:
                 print(f"[auto-effort-probe] {m}: rejected ({err})")
     return out
 
 
-def scan_efforts(proxy: "Proxy", force: bool = False) -> dict[str, bool]:
-    """Probe every backend model and return {id: accepts_reasoning_effort}.
+def scan_efforts(proxy: "Proxy", force: bool = False) -> dict[str, dict]:
+    """Probe every backend model and return {id: {"support": bool, "levels": [...]}}.
+
+    "levels" are the reasoning_effort spellings the backend accepted for that
+    model, in escalation order; an empty list means it took none of them, so DSH
+    must not declare a reasoningEfforts mapping for that model at all.
 
     Honors the usage-DB cache unless force=True. Uncached models are probed
-    concurrently (a probe can take up to ~45s, so a serial walk would blow past
-    the host's spawn timeout once there are more than two unknowns). Prints no
-    usage rows (the probe is a direct upstream call, not a recorded chat)."""
-    result: dict[str, bool] = {}
+    concurrently (each model costs one request per level, so a serial walk would
+    blow past the host's spawn timeout). Prints no usage rows (the probe is a
+    direct upstream call, not a recorded chat)."""
+    result: dict[str, dict] = {}
     r = proxy.call("GET", "/api/models")
     if r.status_code != 200:
         raise RuntimeError(f"could not list models (HTTP {r.status_code})")
@@ -525,22 +560,26 @@ def scan_efforts(proxy: "Proxy", force: bool = False) -> dict[str, bool]:
         mid = m.get("id")
         if not mid:
             continue
-        cached = None if force else effort_cache_get(mid)
-        if cached == 1 or cached == 0:
-            result[mid] = bool(cached)
+        levels = None if force else effort_levels_get(mid)
+        if levels is not None:
+            result[mid] = {"support": bool(levels), "levels": levels}
             continue
         uncached.append(mid)
 
     from concurrent.futures import ThreadPoolExecutor
 
-    def probe(mid: str) -> tuple[str, bool]:
-        ok, err = proxy._probe_effort(mid)
-        effort_cache_set(mid, 1 if ok else 0, err)
-        return mid, ok
+    def probe(mid: str) -> tuple[str, list[str], str]:
+        levels, err = proxy.probe_effort_levels(mid)
+        effort_cache_set(mid, 1 if levels else 0, err, levels)
+        return mid, levels, err
 
     with ThreadPoolExecutor(max_workers=8) as ex:
-        for mid, ok in ex.map(probe, uncached):  # preserves input order
-            result[mid] = ok
+        for mid, levels, err in ex.map(probe, uncached):  # preserves input order
+            result[mid] = {"support": bool(levels), "levels": levels}
+            if levels:
+                print(f"[effort-scan] {mid}: accepts {', '.join(levels)}", file=sys.stderr)
+            else:
+                print(f"[effort-scan] {mid}: rejected every level ({err})", file=sys.stderr)
     return result
 
 

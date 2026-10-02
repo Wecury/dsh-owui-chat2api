@@ -148,14 +148,19 @@ Paste this to your DSH assistant and it will do the rest:
 ## Reasoning effort 🧠
 
 Reasoning models (e.g. served behind a vLLM gateway) honour `reasoning_effort`,
-so DSH's model picker can show **Off / Low / Medium / High**.
+so DSH's model picker shows the levels that model actually accepts (`off` means
+"send no `reasoning_effort` at all").
 
 The easiest way is the **Sync models & reasoning levels** button in the
-Configuration section: it probes your models, declares the supported level for
-each, and writes a backup first. When your backend gains a model, click it
-again — already-probed models hit the cache. Models you deleted in Open WebUI are
-dropped from `settings.yaml` on the next sync, so the list tracks the backend
-instead of only ever growing.
+Configuration section: it probes **each level of each model**, declares only the
+levels the backend accepted, and writes a backup first. That matters because
+acceptance is not a range — DeepSeek V4.1 takes low/high/xhigh/max but rejects
+medium, and Qwen3.8-27B takes xhigh but rejects high — and a level the backend
+rejects turns that pick into an HTTP 400. When your backend gains a model, click it
+again — already-probed models hit the cache. A mapping that drifted out of date is
+corrected in place. Models you deleted in Open WebUI are dropped from
+`settings.yaml` on the next sync, so the list tracks the backend instead of only
+ever growing.
 
 For manual declaration or using `chat2api.py` standalone, see
 [DEVELOPMENT.md](DEVELOPMENT.md).
