@@ -20,8 +20,10 @@
 - `lib/panel.js` —— **CLIENT** 半区：注入 DSH 网页壳的 Vanilla JS 面板逻辑
   （车头自包含，不使用 Cordis 客户端模块）；图标为内联 Tabler SVG
   （`ICONS` 表 + `ic()` 助手，零外部请求，stroke 跟随主题色）。
-- `lib/panel-i18n.js` —— 面板中英字典（`window.__dshOwuiI18n`），host 在
-  `panel.js` 之前注入；panel.js 读不到时降级显示 key，不会崩。
+- `lib/panel-i18n.js` —— **只有 host 消息的中英对照**（`window.__dshOwuiI18n.msg`），host 在
+  `panel.js` 之前注入；面板自己的 UI 文案一律以 `panel.js` 里的 `FALLBACK` 为唯一来源
+  （曾经两处重复、注入的那份覆盖前者，导致新加的 key 静默失效）。`test/i18n-sync.test.js`
+  守住这个分工：served 文件不许再出现 `dict`，且 `panel.js` 里每个 `t('key')` 都要有文案。
 - `lib/panel.css` —— 面板样式，由 host 经 `/dsh-owui-chat2api/panel.css`
   提供，`tapIndex` 以 `<link>` 注入（独立文件，浏览器可缓存）。
 - `lib/settings-patch.js` —— 文本级 YAML 补丁器：向 `~/.dsh/settings.yaml`
@@ -52,7 +54,7 @@ DSH 0.2 起插件由 **plugin manager** 安装：它把仓库**链接**进 profi
   lib/effort-scan.js  HOST：模型与 reasoningEfforts 写入 settings.yaml
   lib/prices.js       HOST：手动价格表 + 逐模型成本估算
   lib/panel.js        CLIENT：自包含控制面板（逻辑，内联进 client.js）
-  lib/panel-i18n.js   CLIENT：面板中英字典（先于 panel.js 注入）
+  lib/panel-i18n.js   CLIENT：仅 host 消息中英对照（先于 panel.js 注入）
   lib/panel.css       CLIENT：面板样式（/panel.css 提供）
   lib/settings-patch.js   settings.yaml 文本补丁器
   chat2api/           chat2api.py + owui_usage.py + dashboard.html + requirements.txt
@@ -94,9 +96,9 @@ DSH 0.2 起插件由 **plugin manager** 安装：它把仓库**链接**进 profi
 | Method | Path | 用途 |
 | ------ | ---- | ---- |
 | GET  | `/dsh-owui-chat2api/panel.js` | 面板脚本（经 tapIndex） |
-| GET  | `/dsh-owui-chat2api/panel-i18n.js` | 面板字典（先于 panel.js 注入） |
+| GET  | `/dsh-owui-chat2api/panel-i18n.js` | host 消息对照表（先于 panel.js 注入） |
 | GET  | `/dsh-owui-chat2api/panel.css` | 面板样式（经 tapIndex） |
-| GET  | `/dsh-owui-chat2api/api/status` | 配置 + 运行状态 + 诊断 + 最近一次登录结果 + 日志尾部 |
+| GET  | `/dsh-owui-chat2api/api/status` | 配置 + 运行状态 + 诊断 + 最近一次登录结果 + 日志尾部 + 实际使用的 chat2api 目录（`chat2apiDirInfo`） |
 | GET/POST | `/dsh-owui-chat2api/api/config` | 读取 / 保存配置（false→true 时自动启动） |
 | POST | `/dsh-owui-chat2api/api/start` | 启动 `chat2api.py` |
 | POST | `/dsh-owui-chat2api/api/stop` | 停止 `chat2api.py` |
@@ -193,7 +195,13 @@ HOST 侧的面板资源在启动时读入 `panelAssetCache`，所以改了 `lib/
 - 如果 DSH 的 agent 会话本身走这条代理，停掉它会把当前聊天打断——控件已有
   保护，这必须是有意的操作。
 - `scripts/pack.ps1` 是 Windows 路径；如需 mac/linux，加一个对等脚本。
-- 控制文件里的 `chat2apiDir` 决定**实际跑哪份 python**。旧流程留下的值会指向
-  `~/.dsh/plugins/dsh-owui-chat2api-<version>/chat2api`（已废弃的安装副本），
-  那样代理和面板扫描都还在跑旧代码——把它改成这棵仓库的 `chat2api/` 才会用到当前
-  代码（改完要重启代理：面板 Stop → Start；**不用**重启 DSH）。
+- `chat2apiDir`（控制文件里的）是**可选覆盖**，默认空字符串：空 = 用本包自带的那份
+  `chat2api/`（`PACKAGE_ROOT/chat2api`）。python 半区随包发布，所以 tgz / GitHub /
+  link 三种装法都自动用对应包里那份，**没人需要手填路径**。面板「配置」里那行会显示
+  实际使用的目录和来源（插件自带 / 你指定的副本）。
+  只有开发者想指向另一份 checkout 时才填它，比如本仓库：`D:\Files\dsh-owui-chat2api\chat2api`。
+- 旧流程（0.10.1 之前的 `pack.ps1`）会把仓库复制到
+  `~/.dsh/plugins/dsh-owui-chat2api-<version>/`，那时的控制文件存的就是这个副本的路径；
+  换成打包安装后这个值永远不会被刷新，代理和面板扫描就会一直跑旧代码。所以这种
+  `plugins/<包名>-<版本>/chat2api` 形状的值现在被**当作没设置**（面板显示"已忽略旧的安装副本"），
+  需要重启代理（面板 Stop → Start；**不用**重启 DSH）才会切到当前代码。

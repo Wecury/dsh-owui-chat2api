@@ -54,7 +54,12 @@ function createPanelInstance(opts) {
       deps: "Deps",
       config: "Configuration",
       dir: "chat2api directory",
-      dirHint: "Bundled directory is pre-filled. Only change to point at another copy.",
+      dirHint: "Leave empty to run the copy bundled with this plugin (recommended). Only set it to point at a separate checkout.",
+      dirEffective: "Running from:",
+      dirSourceBundled: "bundled with the plugin",
+      dirSourceCustom: "your own copy",
+      dirSourceStale: "a stale install copy was ignored",
+      dirSourceMissing: "no chat2api.py there, using the bundled copy",
       baseUrl: "Open WebUI URL",
       host: "Host",
       port: "Port",
@@ -110,7 +115,7 @@ function createPanelInstance(opts) {
       copied: "Copied",
       followLog: "Follow",
       unreachable: "Usage endpoint unreachable at {url}",
-      saveFirst: "Save configuration to enable the dashboard.",
+      saveFirst: "Set the Open WebUI URL and save to enable the dashboard.",
       start: "Start",
       stop: "Stop",
       login: "Login",
@@ -148,7 +153,12 @@ function createPanelInstance(opts) {
       deps: "依赖",
       config: "配置",
       dir: "chat2api 目录",
-      dirHint: "默认已指向内置目录；如需使用其他副本再修改。",
+      dirHint: "留空 = 用插件自带的那份(推荐)。只有要指向另一份 checkout 时才填。",
+      dirEffective: "实际使用:",
+      dirSourceBundled: "插件自带",
+      dirSourceCustom: "你指定的副本",
+      dirSourceStale: "已忽略旧的安装副本",
+      dirSourceMissing: "该目录下没有 chat2api.py,已改用插件自带",
       baseUrl: "Open WebUI 地址",
       host: "主机",
       port: "端口",
@@ -204,7 +214,7 @@ function createPanelInstance(opts) {
       copied: "已复制",
       followLog: "跟随",
       unreachable: "用量地址无法访问:{url}",
-      saveFirst: "保存配置后即可查看用量。",
+      saveFirst: "先填 Open WebUI 地址并保存,即可查看用量。",
       start: "启动",
       stop: "停止",
       login: "登录",
@@ -231,12 +241,10 @@ function createPanelInstance(opts) {
     return window.__dshOwuiI18n || {};
   }
   function mergedDict() {
-    var I = dicts().dict || {};
-    var sig = lang + "|" + (I.en ? Object.keys(I.en).length : -1) + "|" + (I.zh ? Object.keys(I.zh).length : -1);
-    if (i18nMerged && i18nSig === sig) return i18nMerged;
-    var en = Object.assign({}, FALLBACK.en, I.en || {});
-    i18nMerged = lang === "zh" ? Object.assign({}, en, FALLBACK.zh, I.zh || {}) : en;
-    i18nSig = sig;
+    if (i18nMerged && i18nSig === lang) return i18nMerged;
+    var en = Object.assign({}, FALLBACK.en);
+    i18nMerged = lang === "zh" ? Object.assign({}, en, FALLBACK.zh) : en;
+    i18nSig = lang;
     return i18nMerged;
   }
   function t(k) {
@@ -732,7 +740,11 @@ function createPanelInstance(opts) {
     return '<div class="ow-field" data-f="' + k + '"><label>' + esc(label) + '</label><input type="text" value="' + esc(form && form[k] !== void 0 ? String(form[k]) : "") + '" placeholder="' + esc(placeholder || "") + '">' + (hint ? '<div class="ow-hint">' + hint + "</div>" : "") + "</div>";
   }
   function renderConfigRegion() {
-    var html = secHead("config", t("config")) + '<div class="ow-card ow-config">' + fieldHtml("chat2apiDir", t("dir"), t("dirHint")) + fieldHtml("baseUrl", t("baseUrl"), "") + '<div class="ow-grid2">' + fieldHtml("host", t("host"), "", "127.0.0.1") + fieldHtml("port", t("port"), "", "8000") + '</div><label class="ow-switch-row ow-flex ow-gap"><input type="checkbox" data-cb="autoStart"' + (form && form.autoStart ? " checked" : "") + '><span class="ow-switch"></span><span>' + esc(t("autoStart")) + '</span></label><div class="ow-scan-row"><div class="ow-flex ow-gap ow-wrap"><button class="ow-btn" data-effort-scan="1" type="button">' + ic("refresh") + esc(t("effortScan")) + '</button><button class="ow-btn ow-btn-ghost" data-effort-force="1" type="button" title="' + esc(t("effortRescanHint")) + '">' + ic("bolt") + esc(t("effortRescan")) + '</button></div><div class="ow-hint">' + esc(t("effortScanHint")) + '</div></div><div class="ow-config-foot ow-flex ow-end"><button class="ow-btn" data-save="1">' + ic("device-floppy") + esc(t("save")) + "</button></div></div>";
+    var di = snap && snap.chat2apiDirInfo || null;
+    var effDir = di && di.dir || snap && snap.bundledChat2apiDir || "";
+    var srcKey = !di ? "dirSourceBundled" : di.source === "custom" ? "dirSourceCustom" : di.source === "bundled-stale" ? "dirSourceStale" : di.source === "bundled-missing" ? "dirSourceMissing" : "dirSourceBundled";
+    var dirHint = esc(t("dirHint")) + (effDir ? "<br>" + esc(t("dirEffective")) + " " + esc(effDir) + " (" + esc(t(srcKey)) + ")" : "");
+    var html = secHead("config", t("config")) + '<div class="ow-card ow-config">' + fieldHtml("chat2apiDir", t("dir"), dirHint, effDir) + fieldHtml("baseUrl", t("baseUrl"), "") + '<div class="ow-grid2">' + fieldHtml("host", t("host"), "", "127.0.0.1") + fieldHtml("port", t("port"), "", "8000") + '</div><label class="ow-switch-row ow-flex ow-gap"><input type="checkbox" data-cb="autoStart"' + (form && form.autoStart ? " checked" : "") + '><span class="ow-switch"></span><span>' + esc(t("autoStart")) + '</span></label><div class="ow-scan-row"><div class="ow-flex ow-gap ow-wrap"><button class="ow-btn" data-effort-scan="1" type="button">' + ic("refresh") + esc(t("effortScan")) + '</button><button class="ow-btn ow-btn-ghost" data-effort-force="1" type="button" title="' + esc(t("effortRescanHint")) + '">' + ic("bolt") + esc(t("effortRescan")) + '</button></div><div class="ow-hint">' + esc(t("effortScanHint")) + '</div></div><div class="ow-config-foot ow-flex ow-end"><button class="ow-btn" data-save="1">' + ic("device-floppy") + esc(t("save")) + "</button></div></div>";
     secConfig.innerHTML = html;
     secConfig.querySelectorAll("input[type=text]").forEach(function(el) {
       el.addEventListener("input", function() {
@@ -762,7 +774,7 @@ function createPanelInstance(opts) {
     var ae = document.activeElement;
     if (ae && secUsage.contains(ae) && ae.tagName === "INPUT") return;
     var cfg = snap && snap.config || form || null;
-    var cfgReady = Boolean(cfg && String(cfg.chat2apiDir || "").trim());
+    var cfgReady = Boolean(cfg && String(cfg.baseUrl || "").trim());
     var url = "http://" + (cfg && cfg.host || "127.0.0.1") + ":" + (cfg && cfg.port || 8e3) + "/v1/usage?range=" + range;
     var body = "";
     if (!cfgReady) {
@@ -1093,7 +1105,7 @@ function createPanelInstance(opts) {
   function usageTick() {
     if (destroyed || document.hidden || !panel.classList.contains("open")) return;
     var cfg = snap && snap.config || form || {};
-    if (String(cfg.chat2apiDir || "").trim()) loadUsage();
+    if (String(cfg.baseUrl || "").trim()) loadUsage();
   }
   timers.push(setInterval(function() {
     if (destroyed || document.hidden || !panel.classList.contains("open")) return;
