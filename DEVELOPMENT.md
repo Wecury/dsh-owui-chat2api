@@ -182,8 +182,14 @@ HOST 侧的面板资源在启动时读入 `panelAssetCache`，所以改了 `lib/
 
 ## 备注
 
-- 面板是经 `webServer.tapIndex` 注入的覆盖层，**不是** Settings 导航槽（那个
-  槽只给 Cordis 动态插件用）。
+- 面板有两个挂载点：host 经 `webServer.tapIndex` 注入的**覆盖层**（悬浮球 + 面板），
+  以及 client 半区注册的**右侧栏停靠 tab**（`ctx.sidebarRightTabs.register` 声明类型 +
+  `sidebar.right.pane.tab` / `sidebar.right.pane.tab.title` 两个 keyed 席位，key 都是类型
+  id）。**注意 `sidebarRightTabs` 不是静态声明的 Service**：它由
+  `@deepseek-ai/dsh-client-ui-sidebar-right` 在 effect 里用 `ctx.reflect.provide` 提供，
+  所以 Service 目录里查不到它——别据此判断"这版 DSH 不支持右侧栏"。同理，`guide` 入口
+  各自需要唯一 `id`（`sidebar.right.tab.guide.entry` 按定义 id 派发，缺 id 时自定义卡片
+  拿不到身份）。
 - 如果 DSH 的 agent 会话本身走这条代理，停掉它会把当前聊天打断——控件已有
   保护，这必须是有意的操作。
 - `scripts/pack.ps1` 是 Windows 路径；如需 mac/linux，加一个对等脚本。

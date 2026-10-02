@@ -1161,6 +1161,7 @@ var panelCore = (init_panel(), __toCommonJS(panel_exports));
 var ROUTE = "/dsh-owui-chat2api";
 var OWUI_TYPE_ID = "dsh-owui-chat2api";
 var OWUI_KIND = "owui-console";
+var OWUI_GUIDE_ID = "console";
 function OwuiGlyph(props) {
   var size = props && props.size || 18;
   return React.createElement("svg", {
@@ -1238,8 +1239,15 @@ module.exports = {
       return ctx.sidebarRightTabs.register({
         id: OWUI_TYPE_ID,
         kind: OWUI_KIND,
+        priority: "extension",
         title: owuiTitle,
-        guide: [{ order: 30, title: owuiTitle, description: owuiDescription, icon: OwuiGlyph }]
+        guide: [{
+          id: OWUI_GUIDE_ID,
+          order: 30,
+          title: owuiTitle,
+          description: owuiDescription,
+          icon: OwuiGlyph
+        }]
       });
     }, "owui: rightbar tab type");
     ctx.effect(function() {
