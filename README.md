@@ -55,11 +55,11 @@ registers it in your profile (dependencies + bundles). Pick the profile that
 matches your setup — `desktop` for DSH Desktop, `web` for the stock web UI:
 
 ```powershell
-dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.0
-dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.0
+dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.1
+dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.1
 ```
 
-- `#v0.10.0` pins the release tag — use the version you want (omit it to
+- `#v0.10.1` pins the release tag — use the version you want (omit it to
   follow `main`).
 - Requires `git` on PATH (pnpm clones the repo). Behind a proxy? Export
   `http_proxy` / `https_proxy` first.
@@ -85,8 +85,8 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.0
    directory — move and rename it (`tar` ships with Windows 10+):
 
    ```powershell
-   tar -xzf dsh-owui-chat2api-0.10.0.tgz
-   Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.10.0"
+   tar -xzf dsh-owui-chat2api-0.10.1.tgz
+   Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.10.1"
    ```
 
    Upgrading over a previous manual install? If
@@ -100,7 +100,7 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.0
    have to hand-edit it (`desktop` for DSH Desktop, `web` for the stock web UI):
 
    ```powershell
-   dsh plugin --profile desktop add link:%USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-0.10.0
+   dsh plugin --profile desktop add link:%USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-0.10.1
    ```
 
    Match the folder name to the version you downloaded. Hand-editing the profile
@@ -116,7 +116,7 @@ Paste this to your DSH assistant and it will do the rest:
 请帮我安装 DSH 插件 dsh-owui-chat2api(GitHub 仓库 Wecury/dsh-owui-chat2api)。
 
 步骤:
-1. 执行:dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.0
+1. 执行:dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.1
    (用原版 web 界面就把 --profile desktop 换成 --profile web。需要本机有 git。
    如果 dsh plugin 不可用,改用手动方式:从仓库 Releases 的 Assets 下载
    dsh-owui-chat2api-<版本>.tgz,解压得到 package/ 文件夹,移动并改名为

@@ -50,11 +50,11 @@ DeepSeek Harness（或任何 OpenAI 兼容客户端）
 profile：DSH Desktop 用 `desktop`，原版 web 界面用 `web`：
 
 ```powershell
-dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.0
-dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.0
+dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.1
+dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.1
 ```
 
-- `#v0.10.0` 锁定 Release tag，换成你想要的版本（不写则跟踪 `main` 分支）。
+- `#v0.10.1` 锁定 Release tag，换成你想要的版本（不写则跟踪 `main` 分支）。
 - 需要本机有 `git`（pnpm 走 git 拉取）；网络需要代理时先设
   `http_proxy` / `https_proxy` 再执行。
 - Windows 下报 `[ERR_PNPM_EPERM] ... rename ..._tmp_...`？之前手动装过
@@ -76,8 +76,8 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.0
    （Windows 10+ 自带 `tar` 命令）：
 
    ```powershell
-   tar -xzf dsh-owui-chat2api-0.10.0.tgz
-   Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.10.0"
+   tar -xzf dsh-owui-chat2api-0.10.1.tgz
+   Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.10.1"
    ```
 
    在旧的手动安装上升级？若
@@ -90,7 +90,7 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.0
    原版 web 界面用 `web`）：
 
    ```powershell
-   dsh plugin --profile desktop add link:%USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-0.10.0
+   dsh plugin --profile desktop add link:%USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-0.10.1
    ```
 
    版本号、文件夹名换成你实际下载的版本即可。手改 profile 的 `package.json`
@@ -105,7 +105,7 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.0
 请帮我安装 DSH 插件 dsh-owui-chat2api（GitHub 仓库 Wecury/dsh-owui-chat2api）。
 
 步骤：
-1. 执行：dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.0
+1. 执行：dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.1
    （用原版 web 界面就把 --profile desktop 换成 --profile web。需要本机有 git。
    如果 dsh plugin 不可用，改用手动方式：从仓库 Releases 的 Assets 下载
    dsh-owui-chat2api-<版本>.tgz，解压得到 package/ 文件夹，移动并改名为
