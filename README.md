@@ -25,7 +25,9 @@ DeepSeek Harness (or any OpenAI-compatible client)
 ## Features ✨
 
 - ▶️ Start / stop the proxy from the panel
-- 🩺 Environment check: is Python available, are the dependencies installed?
+- 🩺 Environment check: is Python available, are the dependencies installed? —
+  and a one-click **Install dependencies** button when they are not, so no
+  terminal is needed
 - ⚙️ Configure your Open WebUI URL, host and port
 - 📊 Usage dashboard: today / yesterday / month / total, ranked per model with
   colorful share bars — plus a manual **price table** (per 1M tokens, cached
@@ -33,9 +35,10 @@ DeepSeek Harness (or any OpenAI-compatible client)
 - ⚡ Honest cache tracking: a cache-hit-rate card when the backend reports
   cached tokens, a clear note when it doesn't; estimated and failed calls are
   surfaced too
-- 🪟 Two mounts, one engine: the floating pill overlay **and** a right-sidebar
-  dock tab (DSH Desktop 2.0.10+) — the tab docks beside your conversation
-  instead of covering it; on older DSH versions you simply get the pill
+- 🪟 One engine, mounted where it belongs: in DSH Desktop the console is a
+  right-sidebar dock tab beside your conversation; the web UI gets the floating
+  **OWUI** pill (the desktop shell deliberately skips the pill so it never covers
+  the chat)
 - 🧠 One-click model and reasoning-level sync (see [Reasoning effort](#reasoning-effort-)) —
   it also drops models you deleted in Open WebUI, so the list tracks the backend
   instead of only ever growing
@@ -45,26 +48,44 @@ DeepSeek Harness (or any OpenAI-compatible client)
 
 ## Install 📦
 
-Pick one of three ways: **A** is a single command, **B** needs no `git`, **C**
-lets your DSH assistant do the whole thing.
+Pick one of four ways: **A** is two clicks in the DSH UI, **B** is a single
+command, **C** needs no `git`, **D** lets your DSH assistant do the whole thing.
 
-### ⚡ Option A — one command (recommended)
+### 🖱️ Option A — add it from the DSH plugin page (recommended)
+
+DSH Desktop has a plugin manager built in: open the **Plugins** page in the
+right sidebar (or the **Add plugin** control, the **+**) and paste this URL:
+
+```text
+https://github.com/Wecury/dsh-owui-chat2api#v0.10.2
+```
+
+Confirm, and DSH fetches the plugin, registers it in your profile and offers to
+enable it. The `#v0.10.2` fragment pins the release tag — drop it to follow
+`main`, or swap in the version you want. This is the same `dsh plugin add`
+machinery as Option B, just without a terminal; `git` must be on PATH.
+
+Then restart DSH and install the Python dependencies with one click (see
+[Dependencies](#dependencies-)) — the panel's diagnostics card has a button for
+it.
+
+### ⚡ Option B — one command
 
 The `dsh` CLI ships a plugin manager. One command installs the plugin **and**
 registers it in your profile (dependencies + bundles). Pick the profile that
 matches your setup — `desktop` for DSH Desktop, `web` for the stock web UI:
 
 ```powershell
-dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.1
-dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.1
+dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.2
+dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.2
 ```
 
-- `#v0.10.1` pins the release tag — use the version you want (omit it to
-  follow `main`).
+- `#v0.10.2` pins the release tag — use the version you want (omit it to
+  follow `main`). The `https://github.com/...#v0.10.2` form works here too.
 - Requires `git` on PATH (pnpm clones the repo). Behind a proxy? Export
   `http_proxy` / `https_proxy` first.
 - Hit `[ERR_PNPM_EPERM] ... rename ..._tmp_...` on Windows? A junction left by
-  an earlier manual install (Option B) is in the way — remove **only the
+  an earlier manual install (Option C) is in the way — remove **only the
   link**, then run the command again:
 
   ```powershell
@@ -75,7 +96,7 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.1
 - Restart DSH when it finishes. Later updates (same `--profile` as install):
   `dsh plugin --profile <desktop|web> update dsh-owui-chat2api`.
 
-### 📦 Option B — from the release tarball (no git needed)
+### 📦 Option C — from the release tarball (no git needed)
 
 1. From [Releases](https://github.com/Wecury/dsh-owui-chat2api/releases) →
    **Assets**, download `dsh-owui-chat2api-<version>.tgz`.
@@ -85,8 +106,8 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.1
    directory — move and rename it (`tar` ships with Windows 10+):
 
    ```powershell
-   tar -xzf dsh-owui-chat2api-0.10.1.tgz
-   Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.10.1"
+   tar -xzf dsh-owui-chat2api-0.10.2.tgz
+   Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.10.2"
    ```
 
    Upgrading over a previous manual install? If
@@ -100,7 +121,7 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.1
    have to hand-edit it (`desktop` for DSH Desktop, `web` for the stock web UI):
 
    ```powershell
-   dsh plugin --profile desktop add link:%USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-0.10.1
+   dsh plugin --profile desktop add link:%USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-0.10.2
    ```
 
    Match the folder name to the version you downloaded. Hand-editing the profile
@@ -108,30 +129,54 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.1
    profile against its own records on the next install or remove, and can revert rows
    it did not write (that is how another bundle once fell back to a stale pin).
 
-### 🤖 Option C — let your DSH install it
+### 🤖 Option D — let your DSH install it
 
 Paste this to your DSH assistant and it will do the rest:
 
 ```text
-请帮我安装 DSH 插件 dsh-owui-chat2api(GitHub 仓库 Wecury/dsh-owui-chat2api)。
+请帮我安装 DSH 插件 dsh-owui-chat2api（GitHub 仓库 Wecury/dsh-owui-chat2api）。
 
-步骤:
-1. 执行:dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.1
-   (用原版 web 界面就把 --profile desktop 换成 --profile web。需要本机有 git。
-   如果 dsh plugin 不可用,改用手动方式:从仓库 Releases 的 Assets 下载
-   dsh-owui-chat2api-<版本>.tgz,解压得到 package/ 文件夹,移动并改名为
-   %USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-<版本>;然后在
-   %USERPROFILE%\.dsh\profiles\<desktop|web>\package.json 的 dependencies 里加
-   "dsh-owui-chat2api": "link:<该目录的绝对路径>",并把 "dsh-owui-chat2api"
-   加进 dsh.profile.bundles 数组)
+步骤：
+1. 执行：dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.2
+   （用原版 web 界面就把 --profile desktop 换成 --profile web。需要本机有 git。
+    也可以在 DSH 的插件页面直接用 URL 安装：
+    https://github.com/Wecury/dsh-owui-chat2api#v0.10.2
+    如果都不行，改用手动方式：从仓库 Releases 的 Assets 下载
+    dsh-owui-chat2api-<版本>.tgz，解压得到 package/ 文件夹，移动并改名为
+    %USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-<版本>；然后在
+    %USERPROFILE%\.dsh\profiles\<desktop|web>\package.json 的 dependencies 里加
+    "dsh-owui-chat2api": "link:<该目录的绝对路径>"，并把 "dsh-owui-chat2api"
+    加进 dsh.profile.bundles 数组）
 2. 重启 DSH。
-3. 验证:DSH 页面右上角出现 OWUI 圆标;点开面板,Status 区能显示状态即成功。
+3. 打开面板的 Configuration 区，点"一键安装依赖"装好 python 依赖。
+4. 验证：右侧栏出现 OWUI Console 标签；点开面板，Status 区能显示状态即成功。
 ```
+
+## Dependencies 🐍
+
+The proxy is Python: it needs `requests` and `playwright` (plus the chromium
+build playwright drives). You do **not** need a terminal for this — the panel does
+it:
+
+1. Open the panel → **Configuration** → the diagnostics card. If Python is found
+   but the packages are missing, the card shows an **Install dependencies** button.
+2. Click it. It runs `pip install requests playwright`, then
+   `playwright install chromium`, streaming pip's output into the process log so a
+   slow download is visible instead of a frozen button. On a system Python it adds
+   `--user` automatically; inside a venv that flag is refused, so it is skipped
+   there.
+3. The card flips to **Ready** when it finishes. A proxy that was already running
+   keeps its old interpreter until you stop and start it.
+
+If Python itself is missing, install it first from
+[python.org](https://www.python.org/downloads/) (that installer bundles pip) — the
+panel cannot install an interpreter for you.
 
 ## Quick start 🚀
 
-1. Restart DSH (after any install option above). The **OWUI** pill
-   appears in the top-right corner.
+1. Restart DSH (after any install option above). The console appears as an
+   **OWUI Console** tab in the right sidebar (DSH Desktop), or as the **OWUI**
+   pill in the top-right corner (web UI).
 2. Open the panel and set your Open WebUI URL (the default is a placeholder).
 3. Click **Start**. The first run opens a browser window for a one-time
    sign-in; the session is reused afterwards.
@@ -140,7 +185,7 @@ Paste this to your DSH assistant and it will do the rest:
 
 | Symptom | What to do |
 | --- | --- |
-| Diagnostics shows **Attention** | Install the dependencies: `pip install requests playwright`, then `playwright install` |
+| Diagnostics shows **Attention** | Click **Install dependencies** in the diagnostics card (or run `pip install requests playwright` + `playwright install chromium` yourself) |
 | Login fails / asks to sign in again | Click **Login** in the panel and sign in once in the window |
 | Models missing from the DSH picker | Click **Sync models & reasoning levels**, then restart DSH |
 | The URL is `your-open-webui.example.com` | That's the placeholder — set your real address, then Start |

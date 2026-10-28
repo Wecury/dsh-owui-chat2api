@@ -52,6 +52,13 @@ function createPanelInstance(opts) {
       missing: "Missing",
       python: "Python",
       deps: "Deps",
+      installDeps: "Install dependencies",
+      installDepsHint: "Runs pip install requests playwright, then playwright install chromium, with the Python found above - no terminal needed.",
+      installDepsRunning: "Installing dependencies - this can take a few minutes (a browser download is part of it).",
+      installDepsStep: "Installing:",
+      installDepsDone: "Dependencies installed - the check above should turn Ready.",
+      installDepsFailed: "Dependency install failed:",
+      installDepsStarted: "Dependency install started - progress appears in the process log.",
       config: "Configuration",
       dir: "chat2api directory",
       dirHint: "Leave empty to run the copy bundled with this plugin (recommended). Only set it to point at a separate checkout.",
@@ -151,6 +158,13 @@ function createPanelInstance(opts) {
       missing: "缺失",
       python: "Python",
       deps: "依赖",
+      installDeps: "一键安装依赖",
+      installDepsHint: "用上面找到的 Python 自动执行 pip install requests playwright 和 playwright install chromium,不用打开终端。",
+      installDepsRunning: "正在安装依赖 - 需要几分钟(其中包含浏览器下载)。",
+      installDepsStep: "正在安装:",
+      installDepsDone: '依赖已安装 - 上面的检查应变为"就绪"。',
+      installDepsFailed: "依赖安装失败:",
+      installDepsStarted: "已开始安装依赖 - 进度见进程日志。",
       config: "配置",
       dir: "chat2api 目录",
       dirHint: "留空 = 用插件自带的那份(推荐)。只有要指向另一份 checkout 时才填。",
@@ -441,6 +455,7 @@ function createPanelInstance(opts) {
   var loadSeq = 0;
   var seenLoginAt = 0;
   var seenScanAt = 0;
+  var seenDepsAt = 0;
   function setBanner(m, type) {
     banner = trMsg(m);
     bannerType = type || "";
@@ -501,6 +516,15 @@ function createPanelInstance(opts) {
         }
       }
       if (sc && sc.running && !banner && !busy) setBanner(t("scanRunning"), "info");
+      var dpi = r && r.depsInstall;
+      if (dpi && dpi.resultAt && dpi.resultAt !== seenDepsAt) {
+        seenDepsAt = dpi.resultAt;
+        if (Date.now() - dpi.resultAt < 6e5) {
+          if (dpi.result === "fail") setBanner(t("installDepsFailed") + " " + (trMsg(dpi.message) || ""), "err");
+          else if (dpi.result === "ok") setBanner(t("installDepsDone"), "ok");
+        }
+      }
+      if (dpi && dpi.running && !banner && !busy) setBanner(t("installDepsRunning"), "info");
       if (banner && !busy && Date.now() - bannerAt > 6e3) {
         banner = "";
         bannerType = "";
@@ -670,6 +694,18 @@ function createPanelInstance(opts) {
       setBanner(String(e && e.message || e), "err");
     }));
   }
+  function doInstallDeps() {
+    withBusy(api("install-deps", { method: "POST" }).then(function(r) {
+      if (!r || !r.ok) {
+        setBanner(trMsg(r && r.message) || t("installDepsFailed"), "err");
+        return;
+      }
+      setBanner(t("installDepsStarted"), "info");
+      setTimeout(poll, 1200);
+    }).catch(function(e) {
+      setBanner(String(e && e.message || e), "err");
+    }));
+  }
   function renderNotice() {
     if (!secNotice) return;
     if (!banner) {
@@ -730,11 +766,17 @@ function createPanelInstance(opts) {
       return;
     }
     var ok = d.python === "ok" && d.deps === "ok";
+    var di = snap && snap.depsInstall || null;
+    var installing = !!(di && di.running);
     var realPath = d.pythonPath && !/^(python|python3|py)(\.exe)?$/i.test(d.pythonPath);
     var msgNote = !ok && d.message ? noteHtml(trMsg(d.message), d.python === "missing" ? "err" : "warn") : "";
     var diagLbl = { ok: t("ok"), missing: t("missing"), unknown: t("unknown") };
-    var html = '<div class="ow-card ow-diag"><span class="ow-badge ' + (ok ? "ok" : "warn") + '">' + (ok ? t("ready") : t("attention")) + '</span><div class="ow-diag-list"><div class="ow-diag-row"><span class="ow-k">' + t("python") + '</span><b class="' + (d.python === "ok" ? "ok" : "err") + '">' + esc(diagLbl[d.python] || d.python) + '</b></div><div class="ow-diag-row"><span class="ow-k">' + t("deps") + '</span><b class="' + (d.deps === "ok" ? "ok" : "err") + '">' + esc(diagLbl[d.deps] || d.deps) + "</b></div></div>" + (realPath ? '<div class="ow-diag-path">' + esc(d.pythonPath) + "</div>" : "") + (msgNote ? '<div class="ow-diag-note">' + msgNote + "</div>" : "") + "</div>";
+    var progress = installing ? noteHtml(t("installDepsRunning") + (di && di.step ? " " + t("installDepsStep") + " " + di.step : ""), "info") : "";
+    var installBtn = !ok && d.python === "ok" ? '<div class="ow-diag-install"><button class="ow-btn" data-install-deps="1" type="button"' + (installing || busy ? " disabled" : "") + ">" + ic("download") + esc(installing ? t("installDepsRunning") : t("installDeps")) + '</button><div class="ow-hint">' + esc(t("installDepsHint")) + "</div></div>" : "";
+    var html = '<div class="ow-card ow-diag"><span class="ow-badge ' + (ok ? "ok" : "warn") + '">' + (ok ? t("ready") : t("attention")) + '</span><div class="ow-diag-list"><div class="ow-diag-row"><span class="ow-k">' + t("python") + '</span><b class="' + (d.python === "ok" ? "ok" : "err") + '">' + esc(diagLbl[d.python] || d.python) + '</b></div><div class="ow-diag-row"><span class="ow-k">' + t("deps") + '</span><b class="' + (d.deps === "ok" ? "ok" : "err") + '">' + esc(diagLbl[d.deps] || d.deps) + "</b></div></div>" + (realPath ? '<div class="ow-diag-path">' + esc(d.pythonPath) + "</div>" : "") + (msgNote ? '<div class="ow-diag-note">' + msgNote + "</div>" : "") + (progress ? '<div class="ow-diag-note">' + progress + "</div>" : "") + installBtn + "</div>";
     secDiag.innerHTML = html;
+    var ib = secDiag.querySelector('[data-install-deps="1"]');
+    if (ib) ib.addEventListener("click", doInstallDeps);
   }
   function fieldHtml(k, label, hint, placeholder) {
     return '<div class="ow-field" data-f="' + k + '"><label>' + esc(label) + '</label><input type="text" value="' + esc(form && form[k] !== void 0 ? String(form[k]) : "") + '" placeholder="' + esc(placeholder || "") + '">' + (hint ? '<div class="ow-hint">' + hint + "</div>" : "") + "</div>";
@@ -1014,6 +1056,7 @@ function createPanelInstance(opts) {
     "chart-bar": '<path d="M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -6" /><path d="M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -10" /><path d="M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -14" /><path d="M4 20h14" />',
     "copy": '<path d="M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667l0 -8.666" /><path d="M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1" />',
     "device-floppy": '<path d="M6 4h10l4 4v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2" /><path d="M10 14a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M14 4l0 4l-6 0l0 -4" />',
+    "download": '<path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 11l5 5l5 -5" /><path d="M12 4l0 12" />',
     "file-text": '<path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2" /><path d="M9 9l1 0" /><path d="M9 13l6 0" /><path d="M9 17l6 0" />',
     "key": '<path d="M16.555 3.843l3.602 3.602a2.877 2.877 0 0 1 0 4.069l-2.643 2.643a2.877 2.877 0 0 1 -4.069 0l-.301 -.301l-6.558 6.558a2 2 0 0 1 -1.239 .578l-.175 .008h-1.172a1 1 0 0 1 -.993 -.883l-.007 -.117v-1.172a2 2 0 0 1 .467 -1.284l.119 -.13l.414 -.414h2v-2h2v-2l2.144 -2.144l-.301 -.301a2.877 2.877 0 0 1 0 -4.069l2.643 -2.643a2.877 2.877 0 0 1 4.069 0" /><path d="M15 9h.01" />',
     "player-play": '<path d="M7 4v16l13 -8l-13 -8" />',

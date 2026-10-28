@@ -15,6 +15,14 @@
   后端对 `reasoning_effort` 的接受与否不是区间（DeepSeek V4.1 收
   low/high/xhigh/max 但拒 medium，Qwen3.8-27B 收 xhigh 却拒 high），声明了
   后端不认的档位，一选就是 HTTP 400。
+- `lib/deps-install.js` —— 一键装 python 依赖（`/api/install-deps`）：
+  `pip install requests playwright` → `playwright install chromium` →
+  `pip install tiktoken`（可选，失败不算失败）。系统 python 自动加 `--user`，
+  venv 里不加；PEP 668 的 `externally-managed-environment` 自动改试
+  `--break-system-packages`；没有 pip 就直接告诉用户去装 python.org 的版本。
+  与 start/login 同一套异步模式：POST 立刻返回，进度经 `/api/status` 的
+  `depsInstall` 字段收敛，每条命令输出实时进进程日志。装完自己 `probe(true)`
+  重探，诊断卡片当场变 Ready。
 - `lib/prices.js` —— 手动价格表（每百万 tokens、单一货币符号），host 在
   `/api/usage` 上叠加逐模型成本；未填价的模型只统计、不计费。
 - `lib/panel.js` —— **CLIENT** 半区：注入 DSH 网页壳的 Vanilla JS 面板逻辑
@@ -52,6 +60,7 @@ DSH 0.2 起插件由 **plugin manager** 安装：它把仓库**链接**进 profi
   lib/diagnostics.js  HOST：python/依赖缓存探测
   lib/proxy-process.js  HOST：子进程生命周期 / env 白名单 / 日志尾部 / 登录记账
   lib/effort-scan.js  HOST：模型与 reasoningEfforts 写入 settings.yaml
+  lib/deps-install.js HOST：一键装 python 依赖（pip + playwright chromium）
   lib/prices.js       HOST：手动价格表 + 逐模型成本估算
   lib/panel.js        CLIENT：自包含控制面板（逻辑，内联进 client.js）
   lib/panel-i18n.js   CLIENT：仅 host 消息中英对照（先于 panel.js 注入）
@@ -168,7 +177,7 @@ HOST 侧的面板资源在启动时读入 `panelAssetCache`，所以改了 `lib/
 
 ## 测试
 
-- `npm test`（即 `node --test test/`）——两个文件：
+- `npm test`（即 `node --test "test/*.test.js"`）——四个文件：
   - `test/settings-patch.test.js`：`lib/settings-patch.js` 的全部行为——effort 块的
     插入位置与缩进、**按验证档位生成映射**（只写后端接受的档位）、**漂移映射的
     就地修复**（去掉被拒档位、补上缺失档位、保留重命名拼写如 `max: ultra`）、
@@ -178,16 +187,32 @@ HOST 侧的面板资源在启动时读入 `panelAssetCache`，所以改了 `lib/
     全链创建与重名避让（`chat2api-1`），以及 effort-scan "写后自验证"依赖的
     **三轮 round-trip 不变量**（create → patch → 再跑一遍全部报 already）。
   - `test/prices.test.js`：价格表读写、逐模型成本公式、cached 夹取与未定价模型。
+  - `test/deps-install.test.js`：一键装依赖里**不 spawn 任何进程**的那部分契约——
+    `/api/status` 读的字段一个不少、没 python 时直接拒绝且不改状态、并发第二次
+    调用被拒、spawn 失败报可读原因而不是 `exit null`。
+  - `test/i18n-sync.test.js`：`panel-i18n.js` 只放 host 消息、`panel.js` 里每个
+    `t('key')` 都有文案。
+- 一键装依赖的**成功路径**（真的跑 pip / 下载 chromium）不进单测：它依赖网络与
+  本机 python。验证方式是临时脚本直接调 `startDepsInstall()` 再读 `depsState`——
+  失败分支可用一个假的"python"可执行文件伪造 stderr 消息（`externally-managed-environment`
+  / `No module named pip`）来覆盖。
 - settings.yaml 是用户的核心配置，**改 `settings-patch.js` 必须先跑测试**；
   新增行为先加测试再改实现。
 - `test/` 是纯开发工件：不进 npm 发布包（`files` 白名单 + `.npmignore`）。
 
 ## 备注
 
-- 面板有两个挂载点：host 经 `webServer.tapIndex` 注入的**覆盖层**（悬浮球 + 面板），
-  以及 client 半区注册的**右侧栏停靠 tab**（`ctx.sidebarRightTabs.register` 声明类型 +
-  `sidebar.right.pane.tab` / `sidebar.right.pane.tab.title` 两个 keyed 席位，key 都是类型
-  id）。**注意 `sidebarRightTabs` 不是静态声明的 Service**：它由
+- 面板有两个挂载点，但**按平台二选一**：host 经 `webServer.tapIndex` 注入的
+  **覆盖层**（悬浮球 + 面板）只在 **web** 界面挂；client 半区注册的**右侧栏停靠 tab**
+  （`ctx.sidebarRightTabs.register` 声明类型 + `sidebar.right.pane.tab` /
+  `sidebar.right.pane.tab.title` 两个 keyed 席位，key 都是类型 id）是 **DSH Desktop**
+  的挂载点。桌面壳里再挂一个悬浮球只会盖住它本该停在旁边的会话，所以
+  `tapIndex` 那段 boot 脚本先判断平台、是桌面就只打一行 console.info 然后返回。
+  判断依据（任一成立即桌面）：`location.protocol === 'dsh-app:'`（桌面窗口加载
+  `dsh-app://app/`，最早也最明确）、`window.dshDesktop` / `window.desktopNext` /
+  `window.dshDesktopBoot`、`<html data-platform>` 或 `data-windows-titlebar`（preload
+  在 DOMContentLoaded 时打上，所以判断放在 DOMContentLoaded 之后）。
+- **注意 `sidebarRightTabs` 不是静态声明的 Service**：它由
   `@deepseek-ai/dsh-client-ui-sidebar-right` 在 effect 里用 `ctx.reflect.provide` 提供，
   所以 Service 目录里查不到它——别据此判断"这版 DSH 不支持右侧栏"。同理，`guide` 入口
   各自需要唯一 `id`（`sidebar.right.tab.guide.entry` 按定义 id 派发，缺 id 时自定义卡片

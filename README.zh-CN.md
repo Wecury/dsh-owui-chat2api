@@ -26,14 +26,16 @@ DeepSeek Harness（或任何 OpenAI 兼容客户端）
 ## 功能 ✨
 
 - ▶️ 从面板启动 / 停止代理
-- 🩺 环境检查：Python 是否可用、依赖是否装好
+- 🩺 环境检查：Python 是否可用、依赖是否装好；缺依赖时诊断卡片上直接给
+  **一键安装依赖**按钮，不用开终端
 - ⚙️ 配置 Open WebUI 地址、主机、端口
 - 📊 用量面板：今天 / 昨天 / 本月 / 累计，按模型排行，彩色份额条；附手动
   **价格表**（每百万 tokens、缓存单独计价），把统计变成成本估算
 - ⚡ 诚实的缓存统计：后端上报了缓存 tokens 就显示命中率卡片，没上报就明说；
   估算调用与失败调用也会单独标出
-- 🪟 一套引擎两种挂载：悬浮 pill 面板 + **右侧栏停靠标签页**（DSH Desktop
-  2.0.10+）——标签页停在会话旁边，不会盖住会话；旧版 DSH 自动只有 pill
+- 🪟 一套引擎，装在哪就挂在哪：DSH Desktop 里控制台是右侧栏的停靠标签页，
+  停在会话旁边；web 界面是右上角的悬浮 **OWUI** 圆标（桌面壳特意不挂 pill，
+  免得挡住聊天）
 - 🧠 一键同步模型与推理等级（见[推理等级](#推理等级-)）——会一并移除你在
   Open WebUI 中删掉的模型，列表跟随后端而不是只增不减
 - 📜 进程日志：错误高亮、跟随最新、一键复制
@@ -41,24 +43,42 @@ DeepSeek Harness（或任何 OpenAI 兼容客户端）
 
 ## 安装 📦
 
-三种方式任选：**A** 一条命令（推荐）、**B** 不需要 git、**C** 直接让 DSH 帮你装。
+四种方式任选：**A** 在 DSH 界面里点两下（推荐）、**B** 一条命令、
+**C** 不需要 git、**D** 直接让 DSH 帮你装。
 
-### ⚡ 方式 A —— 一条命令（推荐）
+### 🖱️ 方式 A —— 在 DSH 插件页面里装（推荐）
+
+DSH Desktop 自带插件管理器：打开右侧栏的**插件**页面（或右上角的**添加插件**
+“+”按钮），把这个 URL 粘进去：
+
+```text
+https://github.com/Wecury/dsh-owui-chat2api#v0.10.2
+```
+
+确认后 DSH 会拉取插件、写进你的 profile 并提示启用。`#v0.10.2` 锁定
+Release tag——去掉就跟踪 `main`，也可以换成你想要的版本。它和方式 B 走的是同一套
+`dsh plugin add`，只是不用开终端；本机仍需有 `git`。
+
+装完重启 DSH，然后到面板里点一下装 python 依赖（见
+[依赖](#依赖-)）。
+
+### ⚡ 方式 B —— 一条命令
 
 `dsh` CLI 自带插件管理器，一条命令完成安装 **和** profile 注册
 （依赖声明 + bundles 自动写入，不用手改 package.json）。按你的环境选
 profile：DSH Desktop 用 `desktop`，原版 web 界面用 `web`：
 
 ```powershell
-dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.1
-dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.1
+dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.2
+dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.2
 ```
 
-- `#v0.10.1` 锁定 Release tag，换成你想要的版本（不写则跟踪 `main` 分支）。
+- `#v0.10.2` 锁定 Release tag，换成你想要的版本（不写则跟踪 `main` 分支）。
+  `https://github.com/...#v0.10.2` 这种写法在这里同样可用。
 - 需要本机有 `git`（pnpm 走 git 拉取）；网络需要代理时先设
   `http_proxy` / `https_proxy` 再执行。
 - Windows 下报 `[ERR_PNPM_EPERM] ... rename ..._tmp_...`？之前手动装过
-  （方式 B）留下的 junction 挡路了——**只删链接本身**再重试：
+  （方式 C）留下的 junction 挡路了——**只删链接本身**再重试：
 
   ```powershell
   cmd /c rmdir "%USERPROFILE%\.dsh\profiles\<desktop|web>\node_modules\dsh-owui-chat2api"
@@ -68,7 +88,7 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.1
 - 装完重启 DSH 即可。以后升级（`--profile` 与安装时一致）：
   `dsh plugin --profile <desktop|web> update dsh-owui-chat2api`。
 
-### 📦 方式 B —— 从 Release 的 tgz 手动装（无需 git）
+### 📦 方式 C —— 从 Release 的 tgz 手动装（无需 git）
 
 1. 到 [Releases](https://github.com/Wecury/dsh-owui-chat2api/releases) →
    **Assets** 下载 `dsh-owui-chat2api-<版本>.tgz`。
@@ -76,8 +96,8 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.1
    （Windows 10+ 自带 `tar` 命令）：
 
    ```powershell
-   tar -xzf dsh-owui-chat2api-0.10.1.tgz
-   Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.10.1"
+   tar -xzf dsh-owui-chat2api-0.10.2.tgz
+   Move-Item package "$env:USERPROFILE\.dsh\plugins\dsh-owui-chat2api-0.10.2"
    ```
 
    在旧的手动安装上升级？若
@@ -90,14 +110,14 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.1
    原版 web 界面用 `web`）：
 
    ```powershell
-   dsh plugin --profile desktop add link:%USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-0.10.1
+   dsh plugin --profile desktop add link:%USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-0.10.2
    ```
 
    版本号、文件夹名换成你实际下载的版本即可。手改 profile 的 `package.json`
    也能用，但那个文件现在归插件管理器：它会在下一次安装/卸载时按自己的记录
    reconcile，把不是它写的行回滚掉（曾经因此把另一个插件降回旧版本 pin）。
 
-### 🤖 方式 C —— 直接喊你的 DSH 装
+### 🤖 方式 D —— 直接喊你的 DSH 装
 
 把下面这段发给你的 DSH 助手，剩下的它来做：
 
@@ -105,21 +125,42 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.1
 请帮我安装 DSH 插件 dsh-owui-chat2api（GitHub 仓库 Wecury/dsh-owui-chat2api）。
 
 步骤：
-1. 执行：dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.1
+1. 执行：dsh plugin --profile desktop add github:Wecury/dsh-owui-chat2api#v0.10.2
    （用原版 web 界面就把 --profile desktop 换成 --profile web。需要本机有 git。
-   如果 dsh plugin 不可用，改用手动方式：从仓库 Releases 的 Assets 下载
-   dsh-owui-chat2api-<版本>.tgz，解压得到 package/ 文件夹，移动并改名为
-   %USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-<版本>；然后在
-   %USERPROFILE%\.dsh\profiles\<desktop|web>\package.json 的 dependencies 里加
-   "dsh-owui-chat2api": "link:<该目录的绝对路径>",并把 "dsh-owui-chat2api"
-   加进 dsh.profile.bundles 数组）
+    也可以在 DSH 的插件页面直接用 URL 安装：
+    https://github.com/Wecury/dsh-owui-chat2api#v0.10.2
+    如果都不行，改用手动方式：从仓库 Releases 的 Assets 下载
+    dsh-owui-chat2api-<版本>.tgz，解压得到 package/ 文件夹，移动并改名为
+    %USERPROFILE%\.dsh\plugins\dsh-owui-chat2api-<版本>；然后在
+    %USERPROFILE%\.dsh\profiles\<desktop|web>\package.json 的 dependencies 里加
+    "dsh-owui-chat2api": "link:<该目录的绝对路径>",并把 "dsh-owui-chat2api"
+    加进 dsh.profile.bundles 数组）
 2. 重启 DSH。
-3. 验证：DSH 页面右上角出现 OWUI 圆标；点开面板，Status 区能显示状态即成功。
+3. 打开面板的 Configuration 区，点"一键安装依赖"装好 python 依赖。
+4. 验证：右侧栏出现 OWUI Console 标签；点开面板，Status 区能显示状态即成功。
 ```
+
+## 依赖 🐍
+
+代理是 python 写的，需要 `requests` 和 `playwright`（以及 playwright 用的
+chromium）。这一步**不用开终端**，面板会做：
+
+1. 打开面板 → **Configuration** 区 → 诊断卡片。如果找到了 Python 但缺包，
+   卡片上会出现**一键安装依赖**按钮。
+2. 点它。它会依次执行 `pip install requests playwright` 和
+   `playwright install chromium`，并把 pip 的输出实时打进进程日志——下载慢也能
+   看见进度，而不是一个卡住的按钮。系统级 Python 会自动加 `--user`；venv 里这个
+   参数会被拒绝，所以会自动跳过。
+3. 装完卡片变成 **Ready**。已经在跑的代理仍然用旧解释器，重启它才会用上新装
+   的包。
+
+如果连 Python 都没有，请先从 [python.org](https://www.python.org/downloads/)
+装一个（安装包自带 pip）；面板没法替你装解释器。
 
 ## 快速开始 🚀
 
-1. 重启 DSH（任一方式装完后），右上角出现 **OWUI** 圆标。
+1. 重启 DSH（任一方式装完后）：DSH Desktop 里控制台是右侧栏的
+   **OWUI Console** 标签；web 界面是右上角的 **OWUI** 圆标。
 2. 打开面板，把 **Open WebUI 地址**改成你自己的（默认是占位符）。
 3. 点 **Start**。第一次运行会弹出浏览器窗口，登录一次你的 Open WebUI，
    之后自动复用。
@@ -128,7 +169,7 @@ dsh plugin --profile web add github:Wecury/dsh-owui-chat2api#v0.10.1
 
 | 现象 | 处理 |
 | --- | --- |
-| Diagnostics 显示 **Attention** | 装依赖：`pip install requests playwright`，再 `playwright install` |
+| Diagnostics 显示 **Attention** | 点诊断卡片上的**一键安装依赖**（或自己执行 `pip install requests playwright` + `playwright install chromium`） |
 | 登录失败 / 提示重新登录 | 面板里点 **Login**，在弹窗里登一次即可 |
 | 模型不在 DSH 模型列表里 | 配置区点 **Sync models & reasoning levels**，然后重启 DSH |
 | 地址还是 `your-open-webui.example.com` | 那是占位符，改成本机实际地址再 Start |
