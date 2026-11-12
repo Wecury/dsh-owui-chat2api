@@ -173,6 +173,7 @@ chromium）。这一步**不用开终端**，面板会做：
 | 登录失败 / 提示重新登录 | 面板里点 **Login**，在弹窗里登一次即可 |
 | 模型不在 DSH 模型列表里 | 配置区点 **Sync models & reasoning levels**，然后重启 DSH |
 | 地址还是 `your-open-webui.example.com` | 那是占位符，改成本机实际地址再 Start |
+| 点了**停止**但 python 还在跑（端口还有响应） | v0.10.3 已修：停止现在会验证进程真的死了，并顺手清掉上次 DSH 运行遗留的 python；清不掉时面板不会谎报"已停止"。若状态显示 **残留进程**，按一次 **Stop** 即可清掉旧会话留下的那个 |
 | 安装时报 `[ERR_PNPM_EPERM] ... rename ..._tmp_...` | 旧的手动安装留下的 junction 挡路——`cmd /c rmdir "%USERPROFILE%\.dsh\profiles\<desktop|web>\node_modules\dsh-owui-chat2api"`（只删链接），然后重新执行安装命令 |
 
 ## 推理等级 🧠

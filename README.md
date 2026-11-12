@@ -189,6 +189,7 @@ panel cannot install an interpreter for you.
 | Login fails / asks to sign in again | Click **Login** in the panel and sign in once in the window |
 | Models missing from the DSH picker | Click **Sync models & reasoning levels**, then restart DSH |
 | The URL is `your-open-webui.example.com` | That's the placeholder — set your real address, then Start |
+| **Stop** leaves python running (port still answers) | Fixed in v0.10.3: Stop now verifies the kill, reaps a leftover from a previous DSH run, and refuses to report "Stopped" while python is alive. If the panel shows **Leftover process**, press **Stop** once — it clears the process the old session left behind |
 | `[ERR_PNPM_EPERM] ... rename ..._tmp_...` when installing | An old junction from a previous manual install is in the way — `cmd /c rmdir "%USERPROFILE%\.dsh\profiles\<desktop|web>\node_modules\dsh-owui-chat2api"` (removes the link only), then run the install again |
 
 ## Reasoning effort 🧠

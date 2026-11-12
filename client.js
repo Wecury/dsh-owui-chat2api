@@ -43,6 +43,7 @@ function createPanelInstance(opts) {
       stopped: "Stopped",
       exited: "Exited",
       crashed: "Crashed",
+      orphaned: "Leftover process",
       unknown: "Unknown",
       started: "started",
       exitInfo: "exit {0} sig {1}",
@@ -127,6 +128,11 @@ function createPanelInstance(opts) {
       stop: "Stop",
       login: "Login",
       open: "Open WebUI chat2api",
+      stoppedByUser: "Stopped - the python process is gone.",
+      stopFailedAlive: "Stop failed - python is still alive:",
+      stopFailedPort: "Stop failed - something still serves the port:",
+      leftoverProcess: "Leftover process from a previous run:",
+      leftoverPort: "Something already serves the port:",
       already: "already running",
       notRunning: "not running",
       loginOk: "Logged in - Open WebUI credential saved.",
@@ -149,6 +155,7 @@ function createPanelInstance(opts) {
       stopped: "已停止",
       exited: "已退出",
       crashed: "崩溃",
+      orphaned: "残留进程",
       unknown: "未知",
       started: "启动于",
       exitInfo: "退出 {0} 信号 {1}",
@@ -233,6 +240,11 @@ function createPanelInstance(opts) {
       stop: "停止",
       login: "登录",
       open: "Open WebUI chat2api",
+      stoppedByUser: "已停止，python 进程已结束。",
+      stopFailedAlive: "停止失败 - python 仍在运行:",
+      stopFailedPort: "停止失败 - 端口仍有响应:",
+      leftoverProcess: "上次运行遗留的进程:",
+      leftoverPort: "端口已被占用，但不是本会话启动的:",
       already: "已在运行",
       notRunning: "未在运行",
       loginOk: "登录成功 - Open WebUI 凭据已保存。",
@@ -280,11 +292,21 @@ function createPanelInstance(opts) {
   function normMsg(s) {
     return String(s).replace(/\u2026/g, "...");
   }
+  var MSG_PREFIX = [
+    [/^stop failed: python still alive/i, "stopFailedAlive"],
+    [/^stop failed: something still serves/i, "stopFailedPort"],
+    [/^leftover chat2api\.py from a previous run/i, "leftoverProcess"],
+    [/^something already serves/i, "leftoverPort"]
+  ];
   function trMsg(s) {
     if (typeof s !== "string" || !s) return s;
     var MSG = msgs();
     var d = (MSG[lang] || MSG.en)[normMsg(s)];
-    return d !== void 0 ? d : s;
+    if (d !== void 0) return d;
+    for (var i = 0; i < MSG_PREFIX.length; i++) {
+      if (MSG_PREFIX[i][0].test(s)) return t(MSG_PREFIX[i][1]) + s.replace(MSG_PREFIX[i][0], "");
+    }
+    return s;
   }
   function setLang(l) {
     lang = l;
@@ -677,13 +699,15 @@ function createPanelInstance(opts) {
   function doStop() {
     withBusy(api("stop", { method: "POST" }).then(function(r) {
       if (!r || r.ok === false) {
-        setBanner(r && r.message || t("stop") + "?", noteOf(r && r.message));
+        setBanner(r && r.message || t("stop") + "?", noteOf(r && r.message) || "err");
+        poll();
         return;
       }
+      setBanner(t("stoppedByUser"), "info");
       poll();
     }).catch(function(e) {
       setBanner(String(e && e.message || e), "err");
-    }));
+    }), 3e4);
   }
   function doLogin() {
     withBusy(api("login", { method: "POST" }).then(function(r) {
@@ -721,6 +745,7 @@ function createPanelInstance(opts) {
     var st = snap && snap.runtimeStatus || null;
     var s = st && st.state || "unknown";
     if (s === "running") return { key: "running", cls: "ok", color: "var(--dsw-alias-state-success-primary)" };
+    if (s === "orphaned") return { key: "orphaned", cls: "warn", color: "var(--dsw-alias-state-warn-primary)" };
     if (s === "exited") return { key: "exited", cls: "warn", color: "var(--dsw-alias-state-warn-primary)" };
     if (s === "crashed") return { key: "crashed", cls: "err", color: "var(--dsw-alias-state-error-primary)" };
     if (s === "stopped") return { key: "stopped", cls: "dim", color: "var(--dsw-alias-label-secondary)" };
@@ -747,7 +772,7 @@ function createPanelInstance(opts) {
     if (st && st.startedAt) meta.push(t("started") + " " + new Date(st.startedAt).toLocaleTimeString());
     if (st && (st.exitCode !== null || st.signal !== null)) meta.push(t("exitInfo").replace("{0}", String(st.exitCode)).replace("{1}", String(st.signal)));
     if (st && st.message) meta.push(esc(trMsg(st.message)));
-    var isRunning = !!(st && st.state === "running");
+    var isRunning = !!(st && (st.state === "running" || st.state === "orphaned"));
     var html = secHead("status", t("status")) + '<div class="ow-card ow-status"><div class="ow-flex ow-gap ow-wrap"><div class="ow-state" style="--ow-state:' + m.color + '"><span class="ow-state-dot"></span><span class="ow-state-lbl ' + m.cls + '">' + esc(t(m.key)) + '</span></div><div class="ow-status-actions"><button class="ow-btn ghost" data-a="login"' + (busy ? " disabled" : "") + ">" + ic("key") + esc(t("login")) + '</button><button class="ow-btn" data-a="start"' + (busy || isRunning ? " disabled" : "") + ">" + ic("player-play") + esc(t("start")) + '</button><button class="ow-btn danger" data-a="stop"' + (busy || !isRunning ? " disabled" : "") + ">" + ic("player-stop") + esc(t("stop")) + "</button></div></div>" + (meta.length ? '<div class="ow-meta">' + meta.map(esc).join(" · ") + "</div>" : "") + "</div>";
     secStatus.innerHTML = html;
     secStatus.querySelectorAll("button[data-a]").forEach(function(b) {

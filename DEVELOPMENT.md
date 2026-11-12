@@ -59,6 +59,7 @@ DSH 0.2 起插件由 **plugin manager** 安装：它把仓库**链接**进 profi
   lib/config.js       HOST：控制文件配置 + 共享路径
   lib/diagnostics.js  HOST：python/依赖缓存探测
   lib/proxy-process.js  HOST：子进程生命周期 / env 白名单 / 日志尾部 / 登录记账
+  lib/process-kill.js   HOST：真正杀掉 chat2api.py（枚举 + 验证 + 兜底端口探测）
   lib/effort-scan.js  HOST：模型与 reasoningEfforts 写入 settings.yaml
   lib/deps-install.js HOST：一键装 python 依赖（pip + playwright chromium）
   lib/prices.js       HOST：手动价格表 + 逐模型成本估算
@@ -110,7 +111,7 @@ DSH 0.2 起插件由 **plugin manager** 安装：它把仓库**链接**进 profi
 | GET  | `/dsh-owui-chat2api/api/status` | 配置 + 运行状态 + 诊断 + 最近一次登录结果 + 日志尾部 + 实际使用的 chat2api 目录（`chat2apiDirInfo`） |
 | GET/POST | `/dsh-owui-chat2api/api/config` | 读取 / 保存配置（false→true 时自动启动） |
 | POST | `/dsh-owui-chat2api/api/start` | 启动 `chat2api.py` |
-| POST | `/dsh-owui-chat2api/api/stop` | 停止 `chat2api.py` |
+| POST | `/dsh-owui-chat2api/api/stop` | 停止 `chat2api.py`（**验证进程真的死了**才算成功，见下） |
 | POST | `/dsh-owui-chat2api/api/login` | 一次性 Open WebUI 登录 |
 | POST | `/dsh-owui-chat2api/api/effort-scan` / `effort-scan-force` | 启动模型扫描（立即返回，结果经 status 轮询 + 面板通知） |
 | GET  | `/dsh-owui-chat2api/api/usage?range=` | 同源代理到 `http://<host>:<port>/v1/usage`，host 侧叠加逐模型成本 |
@@ -132,6 +133,14 @@ CORS 问题。
   verify 步骤；schema 若随 DSH 变动，这里会静默失效，改动时要留意。
 - 日志尾部 `LOG_MAX = 80` 行，逐行接受（面板会按行做严重度着色），不要改成
   整体字符串。
+- **停止必须验证，不能假设**：`child.kill()` 只是发信号，且只认得本进程 spawn
+  的那一个 child。`lib/process-kill.js` 因此按命令行枚举所有 `chat2api.py`
+  （按端口过滤，避免杀掉另一个 DSH 实例的代理）、`taskkill /T /F`、用
+  `process.kill(pid, 0)` 复核；清不干净时 `stopImpl()` 返回 `ok:false` 并把状态
+  留成 running——**绝不**在 python 还活着时显示"已停止"。
+- 宿主启动时 `reconcile()` 会把上次运行遗留的 python 标成 `orphaned`（不是
+  stopped），这样面板的 Stop 按钮可点、能清掉它。`shutdown()` 用同步
+  `killTreeSync()`：宿主退出时的异步 taskkill 会被打断，正是残留的来源。
 - 面板的**一切动作反馈都走吸顶 `.ow-notice`**（`setBanner`），不要另起一套
   内联提示。
 
